@@ -1,0 +1,52 @@
+name: selftest
+
+# ⛔ THE HALF THAT NEEDS NO QGIS. `client_selftest.py` grades everything that decides what a
+#    cell says and imports no QGIS on purpose, so it runs on a plain runner. `qgis_selftest.py`
+#    drives the real dialog and needs a QGIS install; it runs locally against QGIS 3.22.9,
+#    3.44.14 and 4.2.2, and this workflow does not pretend to cover it.
+# ⛔ PYTHON 3.9 IS THE FLOOR ON PURPOSE — it is what QGIS 3.22 ships, and the plugin's declared
+#    minimum. A suite green on 3.12 alone would say nothing about the version most users run.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      live:
+        description: "also make one real call to the screening service"
+        type: boolean
+        default: false
+
+jobs:
+  client:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: client_selftest
+        env:
+          PYTHONIOENCODING: utf-8
+          PYTHONUNBUFFERED: "1"
+        run: python client_selftest.py
+
+  live:
+    # ⚠ OPT-IN. A call on every push would put our own traffic on the screening service all day;
+    #   the door counts it apart (`selftest`), but it is still a call nobody asked for.
+    if: github.event_name == 'workflow_dispatch' && inputs.live
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: client_selftest --live
+        env:
+          PYTHONIOENCODING: utf-8
+          PYTHONUNBUFFERED: "1"
+        run: python client_selftest.py --live

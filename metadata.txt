@@ -1,0 +1,110 @@
+[general]
+name=Protected Species Check
+qgisMinimumVersion=3.22
+qgisMaximumVersion=4.99
+supportsQt6=True
+description=Which species in your layer are legally protected — under which law, and which edition. Canada and the global conventions.
+about=Screens the scientific names in any vector layer or table against the conservation registers that decide, and writes the verdict back as attribute columns. 14 laws in force — the federal Species at Risk Act Schedule 1 and the Migratory Birds Convention Act, Quebec's threatened and vulnerable species regulations for fauna and flora, and the Acts of Ontario, New Brunswick, Manitoba, Alberta, Nova Scotia, British Columbia, Newfoundland and Labrador, Saskatchewan, the Northwest Territories and Yukon — with the CITES and CMS Appendices beside them as conventions, never as another jurisdiction's Act — with the IUCN Red List, COSEWIC and the BC Conservation Data Centre beside them, shown as assessments and never as law. Every answer names the instrument and the edition it cites. Where the layer has coordinates, only the laws in force there are marked as applying; where it has none, the plugin says the jurisdiction was not established rather than implying every register applies. It also flags the species whose COSEWIC assessment is not the status Schedule 1 carries, which is the most common way a report quotes the wrong status. Names are resolved against the GBIF backbone first. Requires an internet connection; the screening runs on the Passage Data service and no account is needed. Coverage is Canada plus the global conventions; a layer outside Canada gets the conventions and the Red List only, and is told so.
+version=0.1.5
+author=Passage Data
+email=hello@passage-data.com
+
+tracker=https://github.com/passage-data/qgis-protected-species-check/issues
+repository=https://github.com/passage-data/qgis-protected-species-check
+homepage=https://passage-data.com/
+
+category=Vector
+icon=icon.png
+experimental=True
+deprecated=False
+
+tags=species,protected species,endangered,threatened,species at risk,conservation status,red list,IUCN,COSEWIC,SARA,biodiversity,ecology,taxonomy,GBIF,Canada,Quebec,environmental assessment,wildlife
+
+changelog=0.1.5
+    ⛔⛔ IT COULD NOT BE ENABLED ON QGIS 4 AT ALL, AND THE SUITE COULD NOT SEE IT. QGIS gates
+    a plugin on `qgisMaximumVersion`, and an ABSENT one is not "no ceiling" — it is the minimum's
+    major version plus .99. `qgisMinimumVersion=3.22` therefore declared a ceiling of 3.99, so a
+    real QGIS 4 desktop skipped the plugin and wrote `passage_species_status=false` into its own
+    profile. Everything on this page had been run on QGIS 4.2.2 through PyQGIS, which imports the
+    code and never consults the plugin registry; installing the zip into a real profile and
+    opening the menu is what found it, on the first try.
+    ⛔⛔ THE FIFTH TIME, AND THIS TIME THE RULE ITSELF MOVED. A law, a convention and an
+    assessment are three things, and telling them apart had been written out BY HAND in two
+    places: the attribute columns, fixed in 0.1.4, and the on-screen panel, which was not. On a
+    layer outside Canada the panel printed "The IUCN Red List of Threatened Species — Endangered
+    [law in force here]" under a heading that read LISTED — three lines below the service's own
+    headline, "no law we hold applies to them". Both callers now read one sorter; a sixth copy
+    cannot drift, because there is nowhere left to write one.
+    ★★ AND THE PANEL NO LONGER LOSES THE FINDING WHILE WITHHOLDING THE CLAIM: a taxon named
+    only by a convention, by another jurisdiction's Act or by an assessment gets its own section,
+    with the kind on every line, instead of being promoted to LISTED or dropped into the clean
+    list.
+    ⛔⛔ `pd_applies` HAD ONE BLANK CELL FOR FOUR DIFFERENT FINDINGS. A taxon screened and
+    cleared, a name the GBIF backbone never matched, a place we hold no register for, and a name
+    the service never reached all read as an empty cell in the column a consultant filters on.
+    They now read "no", "not checked (…)", "not covered (no register we hold reaches …)" and
+    "not checked (the screening budget ran out…)". Silence about a place is about us, and it
+    says so in the cell rather than only in the panel.
+    ⛔⛔ THE COLUMN GUESS MISSED EVERY REAL LAYER WE HOLD, and on one of them it landed on the
+    common-name column — the one column the service refuses. It compared case-SENSITIVELY against
+    a list holding `SCIENTIFIC` and `NOM_LATIN`, while real files carry `scientific`, `NOM_SCIEN`
+    and `BOTANICAL_`. It is case-folded now, knows the spellings those files actually use, and
+    when a layer splits the binomial across a genus column and a species column it says so and
+    names the field-calculator expression instead of screening an epithet as a name.
+    ⛔⛔ A FEATURE WITH AN EMPTY NAME CELL VANISHED WITHOUT A WORD. The ACT tree register fills
+    `BOTANICAL_` on 7 of 298 rows; the panel said "5 distinct names read from 7 features" and
+    nothing at all about the other 291. It now names them, in the first three lines.
+    0.1.4
+    ⛔ FIXED, AND IT AFFECTED EVERY LAYER OUTSIDE CANADA: the IUCN Red List could appear in the
+    pd_law column and answer pd_applies with "yes". A law, a convention and an assessment are
+    three different things, and the test that told them apart only ran when the service said a
+    register did NOT apply. Outside Canada the conventions and the Red List are the only
+    instruments that reach, so that is exactly where they were marked as applying and exactly
+    where they were written down as law. They are reported in pd_other now, and a layer with no
+    law reaching it leaves pd_law and pd_applies empty — no claim — instead of claiming one.
+    0.1.3
+    RUN ON THREE QGIS VERSIONS, AND THE FLOOR IS NOW THE LOWEST ONE THAT PASSED.
+    qgisMinimumVersion is 3.22 because the whole suite — 67 bars, live against the service —
+    runs green on QGIS 3.22.9 / Qt 5.15.2 / PyQt 5.15.4 / Python 3.9.5 / GDAL 3.5.1, on
+    3.44.14 / PyQt 5.15.13, and on 4.2.2 / PyQt 6.11. It said 3.22 for two releases with
+    nothing below 4.0 ever run; 0.1.2 raised it to 3.44 because 3.44 was all that had been
+    measured. This lowers it back to 3.22 on a measurement rather than on a hope.
+    ⛔ THE SHAPEFILE WRITE-BACK IS WHY THE OLDEST RUN MATTERED. Those six column names have to
+    survive dBASE's 10-character cap, and the cap is GDAL's, not QGIS's — 3.22 ships GDAL 3.5.1
+    against 4.2.2's 3.13.3, eight minor versions apart. A real shapefile and a real GeoPackage
+    from disk gain all six columns under both, read back by a second layer opened on the bytes.
+    0.1.2
+    THE FIRST RELEASE RUN ON QGIS 3. Everything before this was graded on QGIS 4 / PyQt6 only,
+    and 3.x was a claim: metadata said 3.22 and nothing had ever been run below 4.0. The whole
+    suite now runs green on QGIS 3.44.14 / PyQt 5.15.13 AND on 4.2.2 / PyQt 6.11, 33 bars each.
+    ⛔ qgisMinimumVersion is now 3.44 because 3.44 is what was RUN. It was 3.22, which nothing
+    had measured. Nothing in this plugin needs an API newer than 3.22, so a lower floor is very
+    likely fine — but "very likely" is not a number, and the version a plugin manager enforces
+    should not be one. Install an older LTR beside this one, run qgis_selftest.py there, and
+    lower the floor to whatever passes.
+    ⛔ FIXED, AND IT AFFECTED EVERY QGIS 3 USER: a feature whose name field was empty sent the
+    literal string "NULL" to the screening service as a species name. Under PyQt5 an empty
+    attribute is a null QVariant, not Python's None, and it stringifies to "NULL" — so a layer
+    with one blank row put a binomial nobody wrote onto a screening table, and the service then
+    refused the whole column. Read through qgis.core.NULL now, which is correct under both.
+    ⛔ FIXED: a QUALIFIED listing was written into the attribute table as a settled one. SARA
+    Schedule 1 names Rangifer tarandus caribou only under the Southern Mountain and Northern
+    Mountain populations; screening Quebec's own Gaspesie caribou layer produced
+    "pd_applies: yes" and a SARA status belonging to two other populations. pd_applies now reads
+    "yes (qualified)" and pd_law names the populations the instrument actually listed.
+    ⛔ FIXED: a layer with no geometry was never asked which province it is in. The test for that
+    asked whether geometryType() was None, which it never is — a table reports GeometryType.Null,
+    an enum member. The window now asks, and a placeless layer reads "not established", never "no".
+    ⛔ FIXED: a layer whose provider cannot take new columns — a zipped shapefile, a CSV — now
+    says so in a sentence instead of appearing to have been written.
+    Instrument names and editions now reach the columns: the service was computing the register
+    cards and not sending them, so pd_law read "ca_sara" and no edition was ever cited.
+    0.1.1
+    Fixes two PyQt6 breaks that stopped the window opening at all on QGIS 4: Qt.PlainText and
+    QDialogButtonBox.Close do not exist there. Verified on QGIS 4.2.2 / PyQt 6.11; the scoped
+    spellings used now resolve under PyQt5 too, but 3.x has not been run.
+    A convention is named as a convention, not as another jurisdiction's Act.
+    A cold 500 from the service is retried; a refusal is not.
+    0.1.0
+    First release. Screens a name field against ten laws and three assessment lists, writes six
+    columns back, and reports the COSEWIC / Schedule 1 disagreements.
