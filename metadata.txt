@@ -4,8 +4,8 @@ qgisMinimumVersion=3.22
 qgisMaximumVersion=4.99
 supportsQt6=True
 description=Which species in your layer are legally protected — under which law, and which edition. Canada and the global conventions.
-about=Screens the scientific names in any vector layer or table against the conservation registers that decide, and writes the verdict back as attribute columns. 14 laws in force — the federal Species at Risk Act Schedule 1 and the Migratory Birds Convention Act, Quebec's threatened and vulnerable species regulations for fauna and flora, and the Acts of Ontario, New Brunswick, Manitoba, Alberta, Nova Scotia, British Columbia, Newfoundland and Labrador, Saskatchewan, the Northwest Territories and Yukon — with the CITES and CMS Appendices beside them as conventions, never as another jurisdiction's Act — with the IUCN Red List, COSEWIC and the BC Conservation Data Centre beside them, shown as assessments and never as law. Every answer names the instrument and the edition it cites. Where the layer has coordinates, only the laws in force there are marked as applying; where it has none, the plugin says the jurisdiction was not established rather than implying every register applies. It also flags the species whose COSEWIC assessment is not the status Schedule 1 carries, which is the most common way a report quotes the wrong status. Names are resolved against the GBIF backbone first. Requires an internet connection; the screening runs on the Passage Data service and no account is needed. Coverage is Canada plus the global conventions; a layer outside Canada gets the conventions and the Red List only, and is told so.
-version=0.1.5
+about=Screens the scientific names in any vector layer or table against the conservation registers that decide, and writes the verdict back as attribute columns. 14 laws in force — the federal Species at Risk Act Schedule 1 and the Migratory Birds Convention Act, Quebec's threatened and vulnerable species regulations for fauna and flora, and the Acts of Ontario, New Brunswick, Manitoba, Alberta, Nova Scotia, British Columbia, Newfoundland and Labrador, Saskatchewan, the Northwest Territories and Yukon — with the CITES and CMS Appendices beside them as conventions, never as another jurisdiction's Act — with the IUCN Red List, COSEWIC and the BC Conservation Data Centre beside them, shown as assessments and never as law. Every answer names the instrument and the edition it cites. Where the layer has coordinates, only the laws in force there are marked as applying; where it has none, the plugin says the jurisdiction was not established rather than implying every register applies. It also flags the species whose COSEWIC assessment is not the status Schedule 1 carries, which is the most common way a report quotes the wrong status. Names are resolved against the GBIF backbone first. Requires an internet connection; the screening runs on the Passage Data service and no account is needed. Every screening states its own coverage: it ends with the registers it was actually checked against, and names the jurisdictions in your file that no register we hold reaches — an absent instrument is never reported as an absent listing.
+version=0.1.6
 author=Passage Data
 email=hello@passage-data.com
 
@@ -20,7 +20,18 @@ deprecated=False
 
 tags=species,protected species,endangered,threatened,species at risk,conservation status,red list,IUCN,COSEWIC,SARA,biodiversity,ecology,taxonomy,GBIF,Canada,Quebec,environmental assessment,wildlife
 
-changelog=0.1.5
+changelog=0.1.6
+    ⛔ A SENTENCE ON THIS PAGE WAS FALSE, AND THIS PAGE IS PUBLISHED VERBATIM. It read
+    "Coverage is Canada plus the global conventions; a layer outside Canada gets the conventions
+    and the Red List only" — measured against the live service, a layer in the United Kingdom
+    comes back with a law named and `pd_applies: yes`. The replacement names no scope at all:
+    every screening already ends with the registers it was checked against and the jurisdictions
+    it could not reach, and a coverage claim written once beside the product is exactly what went
+    stale in "Ten laws" and "thirteen registers".
+    ⛔ AND THE SELFTEST'S USAGE EXAMPLE NAMED A PRIVATE CHECKOUT AND A USERNAME. `qgis_selftest.py`
+    ships inside this zip; its first lines were one machine's command line. Portable now, and the
+    publishing tool refuses a file carrying either.
+    0.1.5
     ⛔⛔ IT COULD NOT BE ENABLED ON QGIS 4 AT ALL, AND THE SUITE COULD NOT SEE IT. QGIS gates
     a plugin on `qgisMaximumVersion`, and an ABSENT one is not "no ceiling" — it is the minimum's
     major version plus .99. `qgisMinimumVersion=3.22` therefore declared a ceiling of 3.99, so a

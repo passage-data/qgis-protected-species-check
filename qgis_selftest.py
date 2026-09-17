@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 r"""qgis_selftest.py — THE HALF THAT NEEDS QGIS, RUN WITHOUT A SCREEN (INV-6).
 
-    "C:\Users\Kevin\AppData\Local\Programs\OSGeo4W\bin\python-qgis.bat" ^
-        C:\Dev\Fieldscope\qgis_plugin\passage_species_status\qgis_selftest.py
+    QT_QPA_PLATFORM=offscreen <qgis-python> qgis_selftest.py
+    …where <qgis-python> is the interpreter QGIS ships: on OSGeo4W that is
+      <OSGeo4W>\bin\python-qgis.bat (current) or python-qgis-ltr.bat (LTR).
     …--no-live   build the layer and the dialog, call nothing
     …--shot DIR  also write dialog_before.png / dialog_after.png there
 
