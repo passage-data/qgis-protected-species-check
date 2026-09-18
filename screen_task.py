@@ -39,7 +39,7 @@ def _text(raw):
 
 
 def name_values(layer, field):
-    """→ ([(name, lat, lon)], n_features, n_without_place, truncated, n_blank)
+    """→ ([(name, lat, lon)], n_features, n_without_place, n_distinct_if_truncated, n_blank)
 
     ⛔⛔ `n_blank` IS THE FEATURES THIS FUNCTION THREW AWAY, AND NOBODY USED TO BE TOLD. A feature
       whose name cell is empty cannot be screened — that is correct — but it left no trace at all:
@@ -93,7 +93,12 @@ def name_values(layer, field):
             rows.append((value, None, None))
             n_no_place += 1
     rows.sort(key=lambda r: r[0].lower())
-    truncated = len(rows) > client.MAX_NAMES
+    # ⛔⛔ A FLAG THAT ATE THE NUMBER. This was `len(rows) > MAX_NAMES`, a bool — so the panel
+    #   could say the cap was hit and NOT how far past it, and a person could not tell whether one
+    #   name was dropped or fourteen hundred. §4: a limit that eats information has to change what
+    #   the caller sees, and "some were dropped" is the shape of exactly that. It is the TOTAL
+    #   distinct count when the cap bit and 0 otherwise, so `if truncated:` reads the same.
+    truncated = len(rows) if len(rows) > client.MAX_NAMES else 0
     return rows[:client.MAX_NAMES], n_feat, n_no_place, truncated, n_blank
 
 

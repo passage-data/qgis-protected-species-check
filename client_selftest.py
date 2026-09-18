@@ -10,6 +10,7 @@ r"""client_selftest.py — THE BARS FOR THE COLUMNS THIS PLUGIN WRITES (INV-6).
 ⛔ THE THING THESE BARS PROTECT: a cell that reads as a legal status when it is not one. Every
   must-fail below is a way that could happen.
 """
+import ast
 import io
 import os
 import sys
@@ -48,6 +49,22 @@ def name(value, designations, assessed=(), conflict=None, match="EXACT", accepte
     if conflict:
         n["conflict"] = conflict
     return n
+
+
+
+def _dialog_places():
+    """→ `dialog.PLACES` as [(code, label)], parsed with `ast` — NEVER imported.
+
+    ⛔ `dialog.py` imports QGIS at module level and this file's whole promise is that it does
+      not. The list is a literal, so the parser reads it exactly as Python would.
+    """
+    src = io.open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "dialog.py"),
+                  encoding="utf-8").read()
+    for node in ast.parse(src).body:
+        if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and getattr(node.targets[0], "id", None) == "PLACES"):
+            return [tuple(ast.literal_eval(e)) for e in node.value.elts]
+    return []
 
 
 def main():
@@ -123,6 +140,39 @@ def main():
     commaed = client.build_csv([("Genus, species", 1.0, 2.0)]).decode().splitlines()[1]
     bar("⛔ a comma inside a name cannot open a fourth column",
         commaed.count(",") == 2 and commaed.startswith("Genus"), commaed)
+
+    # ════════════════════════════════════════════════════════════════════════════════════════
+    # ★★★★ 189 WENT UP AND 188 CAME BACK — THE OFF-BY-ONE, AND THE RULE THAT NAMES IT
+    # ════════════════════════════════════════════════════════════════════════════════════════
+    print("\n-- the question and the answer are reconciled, name by name")
+    bar("⛔ ONE SANITISER: `build_csv` writes exactly what `csv_name` returns, so the two "
+        "callers that compare its output cannot fold differently",
+        client.build_csv([('Taxus baccata \"Fastigiata\"', None, None)]).decode().splitlines()[1]
+        == client.csv_name('Taxus baccata \"Fastigiata\"') + ",,",
+        client.build_csv([('Taxus baccata \"Fastigiata\"', None, None)]).decode().splitlines()[1])
+    _sent = ["Myotis lucifugus", "N/A", 'Taxus baccata \"Fastigiata\"', "Genus, species"]
+    _ans = {"names": [{"value": "Myotis lucifugus"},
+                      {"value": "Taxus baccata 'Fastigiata'"},
+                      {"value": "Genus  species"}]}
+    _gone = client.unanswered(_sent, _ans)
+    bar("⛔⛔ a value we SENT that came back with no row of its own is named — measured on "
+        "Belfast's tree register, 189 distinct values went up, 188 rows came back and "
+        "`not_screened` read 0. The 189th is the literal string `N/A`",
+        _gone == ["N/A"], _gone)
+    bar("⛔ …and a name the SANITISER rewrote is NOT reported as dropped: the door answers "
+        "about `Taxus baccata 'Fastigiata'` because that is the string we sent it",
+        'Taxus baccata \"Fastigiata\"' not in _gone, _gone)
+    bar("★ MUST-CATCH POSITIVE CONTROL, BOTH NUMBERS: comparing the RAW layer values instead "
+        "of the sent ones reports three drops where there is one — two of them false. The "
+        "mechanism is the fold, not the comparison",
+        len([v for v in _sent if v not in {n["value"] for n in _ans["names"]}]) == 3
+        and len(_gone) == 1,
+        "raw compare: %d  ·  folded: %d"
+        % (len([v for v in _sent if v not in {n["value"] for n in _ans["names"]}]), len(_gone)))
+    bar("* MUST-PASS NULL: an answer that holds every name we sent reports nothing — a rule that "
+        "always fires is not a rule",
+        client.unanswered(["Myotis lucifugus"], {"names": [{"value": "Myotis lucifugus"}]}) == [],
+        client.unanswered(["Myotis lucifugus"], {"names": [{"value": "Myotis lucifugus"}]}))
 
     print("\n-- the cap and the timeout are the door's measured reach, not our caution")
     bar("★ the cap carries the lists people actually hold (100s to 1000s of names)",
@@ -410,6 +460,91 @@ def main():
     bar("* MUST-PASS NULL: the census really read the files — a 0 on the inside count would mean "
         "it matched nothing anywhere and the bar above passed for free",
         _inside >= 3, _inside)
+
+    # ════════════════════════════════════════════════════════════════════════════════════════
+    # ★★★★ THE SIXTH AND SEVENTH INSTANCES WERE SENTENCES, AND THE CENSUS ABOVE READS CODE
+    # ════════════════════════════════════════════════════════════════════════════════════════
+    # ⛔⛔ A CONSTANT LABEL MAY NOT ASSERT THAT A LAW REACHES THE READER. The sixth instance was
+    #   the heading `LISTED UNDER A LAW IN FORCE HERE`, printed over rows every one of which read
+    #   `[not established]`; the seventh was `pd_law`'s own description — "the laws in force here
+    #   that list this taxon" — over a cell that, on a placeless file, held TWELVE acts across
+    #   twelve jurisdictions beside `pd_applies: not established` (measured 2026-09-17, live door,
+    #   *Myotis lucifugus* with no coordinates). Neither is code: `legal_instrument`, `"GLOBAL"`
+    #   and `_kind(` appear in neither, so the census above passes while the reader is told a
+    #   thing the cells deny.
+    # ⛔ THE RULE IS MECHANICAL, NOT A TASTE: a reach claim must be COMPUTED from the rows, so it
+    #   may not live in a module-level constant — that is precisely what "constant" means here.
+    #   Every module-level assignment in the shipped plugin is walked with `ast` (which parses
+    #   `dialog.py` WITHOUT importing QGIS, keeping this file's no-QGIS promise), plus the
+    #   README's own column table, which publishes the same labels to a page we do not control.
+    print("\n-- the census, in prose: does any CONSTANT label claim a law reaches the reader?")
+    #: said of a law, each of these asserts reach. ⚠ NOT "in force wherever you are" — that is what
+    #: a convention IS, true of every reader, and `pd_other` says it correctly.
+    REACH_CLAIMS = ("in force here", "in force there", "in force where these", "in force where your",
+                    "law in force", "laws in force here", "that applies in", "that apply here",
+                    "applies to these records", "apply to you")
+
+    def _reach_hits(labels):
+        """→ [(where, phrase, text)] — ONE ENTRY PER LABEL, never per phrase.
+
+        ⚠ THE POSITIVE CONTROL CAUGHT IT: `LISTED UNDER A LAW IN FORCE HERE` carries BOTH
+          "in force here" and "law in force", so counting phrases made one planted label read
+          as two and the control failed against correct code. A census counts the thing it is
+          about — labels — or its number is about the phrase list instead.
+        """
+        found = []
+        for where, s in labels:
+            low = " ".join(str(s).split()).lower()
+            for phrase in REACH_CLAIMS:
+                if phrase in low:
+                    found.append((where, phrase, " ".join(str(s).split())[:70]))
+                    break
+        return found
+
+    _labels = []
+    for _fn in sorted(os.listdir(_dir)):
+        if not _fn.endswith(".py") or _fn.endswith("_selftest.py"):
+            continue
+        _tree = ast.parse(io.open(os.path.join(_dir, _fn), encoding="utf-8").read(), _fn)
+        for _node in _tree.body:                       # MODULE LEVEL ONLY — a constant, by definition
+            if not isinstance(_node, (ast.Assign, ast.AnnAssign)):
+                continue
+            for _sub in ast.walk(_node):
+                if isinstance(_sub, ast.Constant) and isinstance(_sub.value, str):
+                    _labels.append(("%s:%s" % (_fn, _node.lineno), _sub.value))
+    _readme = os.path.join(_dir, "README.md")
+    if os.path.exists(_readme):
+        for _i, _line in enumerate(io.open(_readme, encoding="utf-8").read().splitlines(), 1):
+            if _line.startswith("| `pd_"):
+                _labels.append(("README.md:%d" % _i, _line))
+    else:                                              # the monorepo always has it; a zip may not
+        bar("* the README was read by this census", False, "README.md absent beside the module")
+
+    _hits = _reach_hits(_labels)
+    # ⚠ A ZERO ON BOTH SIDES MEANS THE RIG NEVER RAN. The positive control plants the SIXTH
+    #   INSTANCE'S OWN HEADING, verbatim, as one more label and re-counts — mechanism OFF, then ON.
+    #   BOTH sentences are planted: the heading 0.1.5 shipped, and the `pd_law` description
+    #   0.1.7 shipped — the two instances this census exists for, in their own words.
+    _planted = [("dialog.py:0 (PLANTED — the sixth)", "LISTED UNDER A LAW IN FORCE HERE"),
+                ("client.py:0 (PLANTED — the seventh)",
+                 "the laws in force here that list this taxon, with the status each carries")]
+    _with_plant = _reach_hits(_labels + _planted)
+    bar("⛔⛔ NO CONSTANT LABEL IN THE SHIPPED PLUGIN CLAIMS A LAW REACHES THE READER — the sixth "
+        "instance was a heading and the seventh was a column description, and the code census "
+        "can see neither",
+        not _hits, "%d label(s) scanned · claims found: %s"
+        % (len(_labels), _hits or "none"))
+    bar("★ MUST-CATCH POSITIVE CONTROL: the sixth instance's own heading and the seventh's own "
+        "`pd_law` description, planted verbatim, are BOTH caught — mechanism OFF then ON",
+        len(_with_plant) == len(_hits) + 2
+        and len({w for w, _p, _s in _with_plant if "(PLANTED" in w}) == 2,
+        "without the plants: %d  ·  with them: %d  ·  caught: %s"
+        % (len(_hits), len(_with_plant),
+           [w for w, _p, _s in _with_plant if "(PLANTED" in w] or "NEITHER"))
+    bar("* MUST-PASS NULL: the prose census really read the labels — a 0 here would mean it "
+        "walked nothing and the bar above passed for free",
+        len(_labels) >= 20, "%d constant label(s) across the shipped files and the README"
+        % len(_labels))
 
     # ══════════════════════════════════════════════════════════════════════════════════════════
     # ★★★★ `pd_applies` — FOUR FINDINGS THAT USED TO SHARE ONE EMPTY CELL
@@ -750,6 +885,31 @@ def main():
             got = client.columns_for(a["names"][0], a.get("register_cards") or [], "2026-09-17")
             bar("…and the first name's `pd_law` names a real instrument",
                 "Act" in got["pd_law"] or "Loi" in got["pd_law"], got["pd_law"][:90])
+
+            # ════════════════════════════════════════════════════════════════════
+            # ★★★ EVERY ENTRY IN THE DROPDOWN IS A PROMISE THE WINDOW MAKES
+            # ════════════════════════════════════════════════════════════════════
+            # ⛔ A CODE THE DOOR CANNOT PLACE IS A DEAD CHOICE, and the reader cannot tell one
+            #   from a working one until the answer comes back « not established » — which is
+            #   exactly what the dropdown exists to prevent. `dialog.PLACES` is read as TEXT so
+            #   this file keeps its no-QGIS promise (`dialog` imports QGIS at module level).
+            _places = [c for c, _l in _dialog_places() if c]
+            _unplaced, _placed = [], []
+            for _code in _places:
+                try:
+                    _pa = client.screen([("Myotis lucifugus", None, None)], province=_code)
+                except client.ScreenError as _e:
+                    _unplaced.append("%s (%s)" % (_code, str(_e)[:40]))
+                    continue
+                (_placed if _pa.get("place_established") is True else _unplaced).append(_code)
+            bar("⛔⛔ every place the dropdown offers is one the door PLACES — a choice that "
+                "comes back « not established » is a dead entry, and the four United Kingdom "
+                "subdivisions were added on this measurement",
+                not _unplaced, "%d placed of %d offered · unplaced: %s"
+                % (len(_placed), len(_places), _unplaced or "none"))
+            bar("* MUST-PASS NULL: the dropdown was really read — a 0 offered would mean the "
+                "parse found nothing and the bar above passed for free", len(_places) >= 14,
+                len(_places))
         finally:
             client.USER_AGENT = _real_ua
 

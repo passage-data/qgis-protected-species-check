@@ -5,7 +5,7 @@ qgisMaximumVersion=4.99
 supportsQt6=True
 description=Which species in your layer are legally protected — under which law, and which edition. Canada and the global conventions.
 about=Screens the scientific names in any vector layer or table against the conservation registers that decide, and writes the verdict back as attribute columns. 14 laws in force — the federal Species at Risk Act Schedule 1 and the Migratory Birds Convention Act, Quebec's threatened and vulnerable species regulations for fauna and flora, and the Acts of Ontario, New Brunswick, Manitoba, Alberta, Nova Scotia, British Columbia, Newfoundland and Labrador, Saskatchewan, the Northwest Territories and Yukon — with the CITES and CMS Appendices beside them as conventions, never as another jurisdiction's Act — with the IUCN Red List, COSEWIC and the BC Conservation Data Centre beside them, shown as assessments and never as law. Every answer names the instrument and the edition it cites. Where the layer has coordinates, only the laws in force there are marked as applying; where it has none, the plugin says the jurisdiction was not established rather than implying every register applies. It also flags the species whose COSEWIC assessment is not the status Schedule 1 carries, which is the most common way a report quotes the wrong status. Names are resolved against the GBIF backbone first. Requires an internet connection; the screening runs on the Passage Data service and no account is needed. Every screening states its own coverage: it ends with the registers it was actually checked against, and names the jurisdictions in your file that no register we hold reaches — an absent instrument is never reported as an absent listing.
-version=0.1.7
+version=0.1.8
 author=Passage Data
 email=hello@passage-data.com
 
@@ -20,7 +20,77 @@ deprecated=False
 
 tags=species,protected species,endangered,threatened,species at risk,conservation status,red list,IUCN,COSEWIC,SARA,biodiversity,ecology,taxonomy,GBIF,Canada,Quebec,environmental assessment,wildlife
 
-changelog=0.1.7
+changelog=0.1.8
+    ⛔⛔ THE SEVENTH AND EIGHTH TIMES A LAW, A CONVENTION AND AN ASSESSMENT WERE TOLD APART BY A
+    SENTENCE INSTEAD OF BY THE ROWS — and both were LABELS, which is why the census that ended the
+    first six could not see them: it reads code, and a heading is not code. `pd_law` was described,
+    on this page and in the code, as "the laws in force here that list this taxon". Measured against
+    the live service on a file with no coordinates, that cell held TWELVE acts across twelve
+    jurisdictions — the federal Act, Québec's, Ontario's, New Brunswick's, Alberta's, Manitoba's,
+    Nova Scotia's, Newfoundland's, the Northwest Territories' and three United Kingdom instruments
+    — beside `pd_applies: not established`. "In force here" was false for at least eleven of the
+    twelve, and the column next to it said so. The panel's second heading, « NAMED, BUT NOT BY A LAW
+    IN FORCE HERE », asserted the same thing over Belfast's street-tree register, two lines under the
+    service's own sentence saying the place could not be established. Both follow their rows now, and
+    the census reads LABELS as well as code — shown catching 0.1.5's heading and 0.1.7's column
+    description, planted verbatim, with the count printed both without them and with them.
+    ⛔⛔ 189 NAMES WENT UP AND 188 CAME BACK, AND NOTHING SAID SO. Belfast's register holds 189
+    distinct values under `SPECIES`; the panel reported all 189 and the service answered about 188,
+    with `not_screened: 0`. The 189th is the literal string `N/A`, which the service refuses as a
+    name — correctly — but a value that was never in its count could not be in its report either,
+    and a reader counting the panel against their own column found a number that does not
+    reconcile. The question and the answer are reconciled name by name now, and the difference is
+    named. The comparison folds the name the way the wire does, because two of the register's values
+    carry a double quote that has to be rewritten before sending: comparing raw layer values reports
+    three drops where there is one.
+    ⛔ "THEIR PLACE COMES FROM THE LAYER" PROMISED A FALLBACK THAT DOES NOT EXIST. On that same
+    file every name carries no usable position AND the layer states no place, so there was no layer
+    place for them to come from. ALL of them and SOME of them are different findings, and they had
+    one sentence.
+    ★★ THE PLACE DROPDOWN IS NO LONGER CANADA-ONLY. The service holds eight United Kingdom
+    schedules, and a British table without coordinates had no way to say where it is — so every
+    instrument read "not established", which is the one thing that dropdown exists to prevent.
+    England, Wales, Scotland and Northern Ireland are offered, on a measurement: England answers
+    with the Wildlife and Countryside Act 1981 Schedule 5, Scotland with the 1994 Regulations'
+    Schedule 2, and Northern Ireland with "not covered", naming the country. The United Kingdom
+    itself is NOT offered — Schedule 5 does not reach Northern Ireland, so a bare country can only
+    be answered "we did not ask", and an entry that guarantees a non-answer is a trap rather than a
+    choice. A live bar screens every code the list offers and fails on any the service cannot place.
+    ⛔ AND THE « Canada — federal law and the conventions only » ENTRY OVER-CLAIMED. Choosing it
+    answers with the federal Acts; the eleven provincial and territorial Acts come back NOT ASKED,
+    because the file names the country and no subdivision. That is a limit of the placing, never a
+    scope, and the entry says which now.
+    ★★ THE UPGRADE PATH IS RUN, which only a first install ever had been. 0.1.5 installed in a
+    real QGIS 4.2.2 profile, used, then this version installed over it through QGIS's own
+    Install-from-ZIP code in the SAME session and used again: the menu entry survives as exactly one
+    leaf, the profile keeps the plugin enabled, the code that answers is the code that was
+    installed, and a layer already carrying the six columns is re-screened in place — cells
+    replaced, no seventh column, the date moved. It works because QGIS unloads the plugin and drops
+    it out of `sys.modules` first, so the whole path rests on `unload` leaving nothing behind. Six
+    bars hold it there.
+    ★★ SIX PATHS NOBODY HAD RUN, EACH ONE NOW A BAR. A SELECTION on the layer was ignored in
+    silence — one feature of four selected, four screened, and a panel saying "4 distinct names
+    read from 4 features", true and read by somebody who believes they screened what they picked.
+    The screening still covers the whole file, because a name outside the selection is still a
+    name you will publish; it says so now. An OPEN EDIT SESSION when the write-back fires does not
+    lose uncommitted work, the row whose name is changed but not committed is not written, and a
+    rollback does NOT take the six columns back — they go through the provider, so Undo does not
+    reach them. A LINE and a MULTIPART feature each give one usable position. A MULTI-LAYER
+    GEOPACKAGE takes the columns on the layer you screened and leaves its neighbour alone. And a
+    SHAPEFILE WHOSE dBASE IS NOT UTF-8 keeps its accented cells intact through the write-back.
+    ⛔⛔ THE CAP HAD NEVER BEEN CROSSED, AND THE SENTENCE IT TURNS ON HAD NEVER BEEN PRINTED. The
+    largest layer this suite held has 286 distinct names against a cap of 5,000, so a layer over it
+    was ungraded. It now is, and two things were wrong there: the notice said only that the cap was
+    reached, which does not tell a person whether one name was dropped or fourteen hundred; and the
+    line above it counted what was SENT while saying READ, understating the read by exactly the
+    number that went missing. `truncated` is the count now, not a flag — a limit that eats
+    information has to hand the caller the number it ate.
+    ★ AND THE SUITE NOW RUNS ON A REAL PLACELESS FILE. Every bar about the unplaced path had been
+    graded on a two-line CSV the suite writes itself, and a fixture we wrote agrees with us about
+    everything. 129 bars, green on QGIS 3.22.9, 3.44.14 and 4.2.2 — and all three of those have now
+    been driven as REAL DESKTOPS, with a real window and real fonts, installing this zip through
+    QGIS's own Install-from-ZIP and answering from the Vector menu. Only 4.2.2 ever had been.
+    0.1.7
     ⛔⛔ A HEADING MAY NOT ASSERT WHAT THE ROWS UNDER IT DENY, AND THIS ONE DID. Screening
     Belfast's street-tree register — 37,557 real features with no coordinates — the panel printed
     "LISTED UNDER A LAW IN FORCE HERE" above rows every one of which was marked

@@ -24,8 +24,12 @@ from . import client, screen_task
 #   resolve under both bindings. `QgsTask.CanCancel` and `QVariant.String` were checked the same
 #   way and are correct as they stand — the scoped forms of THOSE two are the ones that break.
 
-# The places the registers cover, as the door names them. "Read it from the layer" is first
+# The places the registers cover, as the door names them — Canada and the United Kingdom, because
+# those are the countries whose registers the service holds. "Read it from the layer" is first
 # because a layer with coordinates answers this question better than a person can.
+# ⛔ EVERY CODE HERE IS ONE THE DOOR CAN PLACE, and a live bar in `client_selftest` screens each
+#   one and fails on any that comes back unplaced — a dropdown entry the service cannot place is a
+#   promise the window makes and the answer breaks.
 PLACES = [
     ("", "Read it from the layer's coordinates (recommended)"),
     ("CA-QC", "Quebec"), ("CA-ON", "Ontario"), ("CA-BC", "British Columbia"),
@@ -33,7 +37,23 @@ PLACES = [
     ("CA-NB", "New Brunswick"), ("CA-NS", "Nova Scotia"), ("CA-PE", "Prince Edward Island"),
     ("CA-NL", "Newfoundland and Labrador"), ("CA-YT", "Yukon"),
     ("CA-NT", "Northwest Territories"), ("CA-NU", "Nunavut"),
-    ("CA", "Canada — federal law and the conventions only"),
+    # ⛔ THE LABEL SAID "federal law and the conventions only", WHICH IS NOT WHAT HAPPENS.
+    #   Measured 2026-09-17 on the live door with `province=CA`: the federal Act answers, and the
+    #   eleven provincial and territorial Acts we hold come back NOT ASKED — the file names the
+    #   country and no subdivision, so there is no answer to give about them. "Only" read as a
+    #   scope, when it is a limit of our placing; the cells now say `not established` and so
+    #   does this.
+    ("CA", "Canada — the federal Acts; the provincial ones cannot be asked without a province"),
+    # ★★ #526 PUT EIGHT UNITED KINGDOM SCHEDULES IN THE CARDS, AND THIS LIST COULD NOT NAME THEM.
+    #   A British table with no coordinates had no way to say where it is, so every instrument
+    #   read `not established` — the one thing the dropdown exists to prevent. Measured live the
+    #   same day: `GB-ENG` answers with the Wildlife and Countryside Act Schedule 5, `GB-SCT` with
+    #   the 1994 Regulations' Schedule 2, and `GB-NIR` with `not covered`, naming Northern Ireland.
+    #  ⛔ THE COUNTRY ITSELF IS NOT OFFERED. Schedule 5 extends to England and Wales and not to
+    #   Northern Ireland, so a bare `GB` can only be answered « we did not ask » — an entry that
+    #   guarantees a non-answer is a trap, not a choice.
+    ("GB-ENG", "England"), ("GB-WLS", "Wales"), ("GB-SCT", "Scotland"),
+    ("GB-NIR", "Northern Ireland"),
 ]
 
 
@@ -43,6 +63,8 @@ class ScreenDialog(QDialog):
         self.iface = iface
         self._task = None
         self._guess_says = ""            # set by `_layer_changed`, read by the note
+        self._sent = []                  # set by `_run`, reconciled against the answer
+        self._answer = None              # the door's own answer, kept so a bar can read it
         self._caveats, self._provenance = [], ""   # set by `_run`, carried into `_report`
         self.setWindowTitle("Protected Species Check")
         self.setMinimumWidth(620)
@@ -220,9 +242,13 @@ class ScreenDialog(QDialog):
         #   report, so the truncation notice and the "no usable geometry" count existed only
         #   while the panel read "Checking…" — a caveat that disappears the moment the verdict
         #   arrives is a caveat nobody has ever read.
-        self._provenance = ("%d distinct name%s read from %d feature%s under “%s”."
-                            % (len(rows), "" if len(rows) == 1 else "s", n_feat,
-                               "" if n_feat == 1 else "s", field))
+        # ⛔ THE COUNT SAYS SENT WHEN IT MEANS SENT. Over the cap `rows` is already cut, so this
+        #   read "5000 distinct names read from 5001 features" — understating what was READ by
+        #   exactly the number that was dropped, on the one path where that number matters.
+        self._provenance = ("%d distinct name%s read from %d feature%s under “%s”%s."
+                            % (truncated or len(rows), "" if (truncated or len(rows)) == 1 else "s",
+                               n_feat, "" if n_feat == 1 else "s", field,
+                               (", and the first %d sent" % client.MAX_NAMES) if truncated else ""))
         self._caveats = []
         if subset:
             # ⚠ THE COUNT IS THE ONE WE CAN STAND BEHIND: the features this run actually read.
@@ -232,6 +258,26 @@ class ScreenDialog(QDialog):
                 "⚠ A FILTER IS ACTIVE ON THIS LAYER (%s). This verdict covers the %d feature(s) "
                 "it shows, not the whole file."
                 % (client._short(subset, 90), n_feat + n_blank))
+        # ⛔⛔ A SELECTION IS IGNORED, AND THAT WAS SILENT. Measured 2026-09-17: one feature of
+        #   four selected, four screened, and the panel said "4 distinct names read from 4
+        #   features" — true, and read by somebody who believes they screened their selection.
+        #   QGIS puts "Selected features only" on half its processing tools, so the expectation
+        #   is the software's own. We do not honour it (a screening is about the NAMES in a file,
+        #   and a name outside the selection is still in the file the person will publish), and
+        #   §4 says a choice we do not honour has to change what the caller sees. It is named,
+        #   not overridden — the same ruling the filter got in 0.1.7, from the other direction:
+        #   a filter LIMITS what we read and is reported as a limit; a selection does not, and is
+        #   reported as not honoured.
+        n_selected = 0
+        try:
+            n_selected = int(lyr.selectedFeatureCount())
+        except Exception:                                            # noqa: BLE001
+            pass                                                     # a provider without selection
+        if n_selected and n_selected < n_feat + n_blank:
+            self._caveats.append(
+                "⚠ %d feature%s selected on this layer, and this screening does NOT stop at the "
+                "selection — it covers all %d. Every name in the file is a name you will publish."
+                % (n_selected, " is" if n_selected == 1 else "s are", n_feat + n_blank))
         lead = [self._provenance]
         if n_blank:
             # ⛔⛔ THE FEATURES THAT CARRY NO NAME ARE NAMED, IN THE FIRST THREE LINES. Measured
@@ -244,18 +290,36 @@ class ScreenDialog(QDialog):
                 "verdict covers %d of the layer's %d features."
                 % (n_blank, "" if n_blank == 1 else "s", field, n_feat, n_feat + n_blank))
         if truncated:
+            # ⛔⛔ THE NUMBER LEFT OVER, NOT JUST THE CAP. « Only the first 5000 were sent » does
+            #   not tell a person whether one name is missing or fourteen hundred, and that is the
+            #   difference between finishing and shipping a verdict over a third of a checklist.
             self._caveats.append(
-                "⛔ Only the first %d were sent — that is one screening pass. "
-                "Split the layer to check the rest." % client.MAX_NAMES)
+                "⛔ This layer holds %d distinct names and only the first %d were sent — %d "
+                "%s NOT screened. That is one pass; split the layer and run the rest."
+                % (truncated, client.MAX_NAMES, truncated - client.MAX_NAMES,
+                   "name was" if truncated - client.MAX_NAMES == 1 else "names were"))
         if n_no_place:
+            # ⛔⛔ "THEIR PLACE COMES FROM THE LAYER" PROMISED A FALLBACK THAT DOES NOT EXIST.
+            #   Measured 2026-09-17 on Belfast's street-tree register read as the CSV it is: all
+            #   189 names carry no usable geometry and the layer states no place either, so there
+            #   was no layer place for them to come from. The sentence read as reassurance two
+            #   lines above the one that says the jurisdiction was never established.
+            #   ALL of them and SOME of them are different findings and they had one sentence.
             self._caveats.append(
-                "⚠ %d of them carry no usable geometry, so their place comes from the "
-                "layer, not from the feature." % n_no_place)
+                ("⛔ NONE of the %d name%s in this layer carries a usable position, and no "
+                 "province was named — so nothing in this run states where these records are."
+                 % (n_no_place, "" if n_no_place == 1 else "s"))
+                if n_no_place == len(rows) and not self.place_box.currentData() else
+                ("⚠ %d of them carry no usable geometry, so their place comes from the rest of "
+                 "the layer, not from the feature." % n_no_place))
         self.out.setPlainText("\n".join(lead + self._caveats) + "\n\nChecking…")
         QApplication.processEvents()
 
         self.run_btn.setEnabled(False)
         self.bar.show()
+        # ⛔ WHAT WE PUT ON THE WIRE, KEPT, so the answer can be reconciled against the question.
+        #   Without it a name the service drops has no witness anywhere (`client.unanswered`).
+        self._sent = [r[0] for r in rows]
         province = self.place_box.currentData() or None
         self._task = screen_task.ScreenTask(rows, province, self._done)
         QgsApplication.taskManager().addTask(self._task)
@@ -267,6 +331,7 @@ class ScreenDialog(QDialog):
             self.out.setPlainText(error)
             return
         checked_on = time.strftime("%Y-%m-%d")
+        self._answer = answer
         self.out.setPlainText(self._report(answer, self._caveats, self._provenance))
         if not self.write_back.isChecked():
             return
@@ -386,14 +451,26 @@ class ScreenDialog(QDialog):
                        "LISTED BY A LAW — BUT WHERE IT IS IN FORCE WAS NOT ESTABLISHED"
                        if _reaches == {False} else
                        "LISTED BY A LAW WE HOLD — EACH LINE SAYS WHETHER IT REACHES YOU")
-        for bucket, head in ((listed, listed_head),
-                             (noted, "NAMED, BUT NOT BY A LAW IN FORCE HERE")):
+        # ⛔⛔ THE EIGHTH INSTANCE, AND IT IS THE SIXTH ONE'S TWIN. `LISTED` was fixed to follow
+        #   its rows; the heading three inches below it was not. « NAMED, BUT NOT BY A LAW IN
+        #   FORCE HERE » asserts what is in force here — measured 2026-09-17 on Belfast's own
+        #   street-tree register, which states no place: the panel printed it over 19 taxa,
+        #   two lines under the service's own sentence saying the place was NOT ESTABLISHED.
+        #   An `elsewhere` row is the only member of this bucket that IS a law, and `elsewhere`
+        #   exists only when a place gated it out — so the rows decide the heading, and the
+        #   stronger form is sayable exactly when one of them is there.
+        _noted_law = any(_k["elsewhere"] for _n, _k in noted)
+        noted_head = ("NAMED, BUT NOT BY A LAW IN FORCE HERE" if _noted_law else
+                      "NAMED, BUT BY NO LAW WE HOLD")
+        for bucket, head in ((listed, listed_head), (noted, noted_head)):
             if not bucket:
                 continue
             lines.append("%s  (%d)" % (head, len(bucket)))
             if bucket is noted:
                 lines.append("  A convention, another jurisdiction's Act, or an assessment. Each "
-                             "line says which. None of them is a law where your records are.")
+                             "line says which. %s"
+                             % ("None of them is a law where your records are."
+                                if _noted_law else "None of them is a law we hold."))
             for n, kinds in bucket:
                 lines.append("  %s" % n.get("value"))
                 lines += self._instrument_lines(cards, kinds)
@@ -444,4 +521,19 @@ class ScreenDialog(QDialog):
                          + " — silence about these is about us, never about your species.")
         if answer.get("not_screened"):
             lines.append("NOT SCREENED THIS PASS: %s name(s)." % answer["not_screened"])
+        # ⛔⛔ THE QUESTION AND THE ANSWER ARE RECONCILED, AND THE DIFFERENCE IS NAMED. 189 names
+        #   went up from Belfast's tree register and 188 came back; `not_screened` read 0, because
+        #   a value the service refuses as a name was never in its count. A missing row is a
+        #   silent drop — exactly the shape §4 forbids — until somebody counts both ends.
+        gone = client.unanswered(self._sent, answer)
+        if gone:
+            lines.append(
+                "⛔ %d value%s we sent came back with NO row of its own, so %s not screened: %s. "
+                "The service does not read %s as a scientific name — a null marker, a note or a "
+                "blank stand-in. Nothing above counts %s."
+                % (len(gone), "" if len(gone) == 1 else "s",
+                   "it was" if len(gone) == 1 else "they were",
+                   ", ".join('“%s”' % g for g in gone[:12]),
+                   "it" if len(gone) == 1 else "them",
+                   "it" if len(gone) == 1 else "them"))
         return "\n".join(lines).rstrip()

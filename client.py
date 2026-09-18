@@ -25,7 +25,7 @@ TIMEOUT_S = 300
 #   looks exactly like nobody using the plugin. Barred in `client_selftest` against that file.
 # ⛔ NOTHING ABOUT THE MACHINE RIDES HERE. `urllib` would otherwise send `Python-urllib/3.x`; a
 #   token of ours replaces it rather than appending to it, and no QGIS build, OS or host is added.
-USER_AGENT = "passage-data-qgis-protected-species-check/0.1.7"
+USER_AGENT = "passage-data-qgis-protected-species-check/0.1.8"
 
 # ⛔⛔ WHAT THE BARS SEND, SO THAT THE PRODUCT'S NUMBER IS THE PRODUCT'S. Both suites screen
 #   against the LIVE door — that is the point of them — and until 2026-09-17 they did it under
@@ -35,7 +35,7 @@ USER_AGENT = "passage-data-qgis-protected-species-check/0.1.7"
 # ⛔ IT IS NOT A PREFIX OF THE PRODUCT TOKEN, AND THE PRODUCT TOKEN IS NOT A PREFIX OF IT —
 #   the door prefix-matches, so either would put the suites straight back into the product's
 #   count. Barred in `client_selftest`, against `funnel_meter` itself.
-SELFTEST_USER_AGENT = "passage-data-qgis-selftest/0.1.7"
+SELFTEST_USER_AGENT = "passage-data-qgis-selftest/0.1.8"
 
 # ⛔⛔ MEASURED, NOT GUESSED (2026-09-17, live door): 100 / 400 / 900 / 2,000 / 5,000 distinct
 #   names all returned whole, `not_screened: 0`, the slowest pass 34.6 s. The first cut of this
@@ -75,6 +75,17 @@ def _multipart(fields, files):
     return b"".join(out), "multipart/form-data; boundary=%s" % boundary
 
 
+def csv_name(name):
+    """→ the name AS WE SEND IT. ⛔ ONE SANITISER, because two callers compare its output.
+
+    A double quote would open a quoted field and a comma would open a fourth column, so both are
+    rewritten — which means the string the door answers about is not always the string the
+    layer holds, and anything matching one against the other has to fold the same way.
+    `unanswered` is that second caller, and it was an inline copy of this line until it existed.
+    """
+    return str(name).replace('"', "'").replace(",", " ").replace("\n", " ").strip()
+
+
 def build_csv(rows):
     """→ the bytes we send. `rows` is [(name, lat, lon)] with lat/lon None when unknown.
 
@@ -85,7 +96,7 @@ def build_csv(rows):
     head = "scientificName,decimalLatitude,decimalLongitude\n"
     body = []
     for name, lat, lon in rows:
-        safe = str(name).replace('"', "'").replace(",", " ").replace("\n", " ").strip()
+        safe = csv_name(name)
         if lat is None or lon is None:
             body.append("%s,,\n" % safe)
         else:
@@ -285,7 +296,16 @@ def guess_name_field(fields, values_for=None):
 # ⛔ SHAPEFILE TRUNCATES A FIELD NAME AT 10 CHARACTERS. Every name below is already within it, so
 #   the columns a shapefile gets are the columns this plugin promised.
 COLUMNS = [
-    ("pd_law", "the laws in force here that list this taxon, with the status each carries"),
+    # ⛔⛔ THE SEVENTH INSTANCE, AND IT WAS THIS LABEL. It read "the laws in force here that
+    #   list this taxon" — a reach claim, on a cell whose reach `pd_applies` may report as
+    #   `not established`. Measured 2026-09-17 on the live door, a placeless file: *Myotis
+    #   lucifugus* filled `pd_law` with TWELVE acts across twelve jurisdictions — SARA, the
+    #   LEMV, Ontario, New Brunswick, Alberta, Manitoba, Nova Scotia, Newfoundland, the
+    #   Northwest Territories and three United Kingdom instruments — beside `pd_applies: not
+    #   established`. "In force here" was false for at least eleven of the twelve, and the
+    #   column beside it said so. A LABEL IS READ BEFORE THE CELL AND INSTEAD OF IT.
+    ("pd_law", "the laws we hold that list this taxon, with the status each carries — "
+               "`pd_applies` says whether they reach these records"),
     # ⛔ FOUR VALUES, NOT THREE, AND THE FOURTH IS THE ONE THAT MATTERS. `yes (qualified)` means
     #   every law that reaches you names this taxon ONLY under a population or subspecies your
     #   layer does not state. It is a QUESTION, and collapsing it into `yes` asserts a status the
@@ -494,6 +514,35 @@ def wholly_uncovered(coverage):
         return []                                    # part of this file IS covered — say `no`
     return out
 
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════
+# ★★★★ A NAME WE SENT AND GOT NO ROW FOR — THE OFF-BY-ONE NOBODY COULD EXPLAIN
+# ══════════════════════════════════════════════════════════════════════════════════════════
+def unanswered(sent, answer):
+    """→ the names we PUT ON THE WIRE that came back with no row of their own.
+
+    ⛔⛔ MEASURED, ON A REAL FILE, 2026-09-17. Belfast's street-tree register holds 189 distinct
+      values under `SPECIES`; the panel said "189 of them carry no usable geometry" and the door
+      answered about 188 names, with `not_screened: 0`. The 189th is the literal string `N/A`,
+      which the service reads as a null marker and removes — correctly, it is not a name — but it
+      left the answer with one fewer row than the question had, and nothing anywhere said so. A
+      reader counting the panel against their own column finds a number that does not reconcile
+      and no sentence to explain it.
+    ⚠ `not_screened` DOES NOT COVER THIS. That counter is the budget's (#529) and read 0 on the
+      same run: a name the door never accepted as a name was never in its denominator.
+    ⛔ THE COMPARISON IS ON THE SANITISED FORM, because that is what we sent. Belfast also holds
+      `Taxus baccata "Fastigiata"`, which reaches the door as `Taxus baccata 'Fastigiata'` and
+      comes back spelled that way — the same name, and comparing raw layer values would report
+      two false drops for every one real one.
+    """
+    answered = {str(n.get("value") or "").strip() for n in (answer or {}).get("names") or ()}
+    out = []
+    for v in sent or ():
+        name = csv_name(v)
+        if name and name not in answered and v not in answered:
+            out.append(v)
+    return out
 
 def unchecked_says(name):
     """→ why this name was NOT screened, or "" when it was.

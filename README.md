@@ -45,7 +45,7 @@ puts it plainly: *absence here is not absence of protection.*
 
 | column | what it holds |
 |---|---|
-| `pd_law` | the laws in force where these records are that list this taxon, with each status |
+| `pd_law` | the laws we hold that list this taxon, with each status — `pd_applies` says whether they reach these records |
 | `pd_applies` | `yes` · `yes (qualified)` · `no` · `not established` · `not covered` · `not checked` |
 | `pd_other` | registers that name it but do not lead here — other jurisdictions' Acts, the conventions, the assessments |
 | `pd_conflic` | where the COSEWIC assessment is not the status Schedule 1 carries |

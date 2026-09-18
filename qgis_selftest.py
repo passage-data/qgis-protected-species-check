@@ -44,8 +44,9 @@ import zipfile
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from qgis.core import (Qgis, QgsApplication, QgsFeature, QgsField, QgsGeometry,  # noqa: E402
-                       QgsPointXY, QgsProject, QgsVectorLayer)
+from qgis.core import (Qgis, QgsApplication, QgsCoordinateTransformContext,  # noqa: E402
+                       QgsFeature, QgsField, QgsGeometry, QgsPointXY, QgsProject,
+                       QgsVectorFileWriter, QgsVectorLayer)
 from qgis.PyQt.QtCore import QVariant                                            # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -85,6 +86,13 @@ BIRDS_SHP = "plaprod_PLACES_bird_atlas.shp"
 ACT_ZIP = os.path.join(REPO, "reports", "corpus", "wide20",
                        "data__actgov-tree-register__aa7270.zip")
 ACT_SHP = "ACTGOV_Tree_Register.shp"
+#: ★★ Belfast City Council's street-tree register: 37,557 rows, 189 distinct values under
+#: `SPECIES`, and — read as a plain CSV, which is how it arrives — NO GEOMETRY. It is the only
+#: real PLACELESS file this suite holds, and every bar about the unplaced path had been graded on
+#: a two-line CSV this file writes itself. Two defects came out of it: a heading that claimed what
+#: its rows denied (0.1.7) and a name the door drops with nothing counting it (`client.unanswered`).
+BELFAST_CSV = os.path.join(REPO, "reports", "corpus", "corridor",
+                           "data__belfast-trees__548bde.csv")
 
 
 def bar(what, ok, detail=""):
@@ -200,7 +208,8 @@ def main():
     bar("every feature's name is read", n_feat == len(PTS), n_feat)
     bar("names are DISTINCT on the wire, not one row per feature",
         len(rows) == len({p[0] for p in PTS}), len(rows))
-    bar("nothing is truncated at this size", trunc is False)
+    bar("nothing is truncated at this size, and the count says so with a 0 rather than a "
+        "flag", trunc == 0, trunc)
     bar("every name carries a place", n_no_place == 0, n_no_place)
     for nm, _x, _y, la, lo in PTS:
         if la is None:
@@ -686,8 +695,10 @@ def main():
             bar("★★ %d features fold to %d DISTINCT names before anything goes on the wire — "
                 "this is the whole reason the door is not asked 65,000 times"
                 % (bfeat, len(brows)), len(brows) < bfeat / 50.0, "%.1fs to read" % dt)
-            bar("⛔ ...and it is under the cap, so nothing is silently dropped",
-                btrunc is False and len(brows) <= client.MAX_NAMES, len(brows))
+            bar("⛔ ...and it is under the cap, so nothing is silently dropped — 0, which is the "
+                "count of names that did not fit rather than a flag saying none did",
+                btrunc == 0 and len(brows) <= client.MAX_NAMES, "%d names · dropped %d"
+                % (len(brows), btrunc and btrunc - client.MAX_NAMES))
 
             # ⛔⛔ COMMON NAMES ARE NOT SCIENTIFIC NAMES, AND THE SAME ROWS CARRY BOTH. This is the
             #   defect that would quietly ruin a report: a user picks `common_nam`, every name
@@ -750,9 +761,18 @@ def main():
                 bar("⛔⛔ MUST-FAIL: ...and no section headed LISTED, three lines under a headline "
                     "that says no law we hold applies — a panel contradicting itself reads broken",
                     "LISTED" not in said_b, said_b.splitlines()[0][:96] if said_b else "(empty)")
-                bar("★ what DID reach is still reported, each line saying WHAT the instrument is "
-                    "— withholding the claim must never lose the finding",
-                    "NAMED, BUT NOT BY A LAW IN FORCE HERE" in said_b
+                # ⚠ THIS BAR WAS WRITTEN ON THE HEADING, AND THE HEADING MOVED. It matched
+                #   « NAMED, BUT NOT BY A LAW IN FORCE HERE » literally; that form now appears
+                #   only when one of the rows IS a law a place gated out, and on this file none
+                #   is — the bucket holds the conventions and the Red List, so the heading reads
+                #   « NAMED, BUT BY NO LAW WE HOLD », which is the true one. A bar written on a
+                #   symptom goes red when the cause is fixed, and that is correct (#272): what it
+                #   is FOR is that the finding survives the withheld claim, so it says that.
+                bar("★ what DID reach is still reported under a heading of its own, each line "
+                    "saying WHAT the instrument is — withholding the claim must never lose the "
+                    "finding",
+                    ("NAMED, BUT NOT BY A LAW IN FORCE HERE" in said_b
+                     or "NAMED, BUT BY NO LAW WE HOLD" in said_b)
                     and ("a convention — in force wherever you are" in said_b
                          or "an assessment, not a law" in said_b),
                     [l.strip()[:88] for l in said_b.splitlines()
@@ -885,6 +905,477 @@ def main():
         gc.collect()
         app.processEvents()
         _tmp_to_clear = tmp
+
+    # ═══════════════════════════════════════════════════════════════════════════════════════
+    # ★★★★ THE INVARIANT AN IN-PLACE UPGRADE RESTS ON — MEASURED ON A REAL DESKTOP FIRST
+    # ═══════════════════════════════════════════════════════════════════════════════════════
+    # ★ ONLY A FIRST INSTALL HAD EVER BEEN RUN. Driven on QGIS 4.2.2's real desktop on
+    #   2026-09-17, in the order a person walks: use 0.1.5, install 0.1.7 in the SAME QGIS through
+    #   `pyplugin_installer.installFromZipFile`, click again. It WORKS — and the reason it works
+    #   is that the installer calls `unloadPlugin` and drops the package out of `sys.modules`, so
+    #   the second click imports the new files. Measured: `client.USER_AGENT` read
+    #   `…/0.1.5` before and `…/0.1.7` after, from the same path, with no restart.
+    # ⛔ SO THE UPGRADE IS ONLY AS GOOD AS `unload`. Anything this plugin leaves behind when
+    #   QGIS unloads it — a menu action, a cached dialog — survives into the new version, and the
+    #   person meets a dead control or two identical menu entries with no way to tell which is
+    #   which. That is what this grades, and no bar did: every other one builds a dialog directly
+    #   and never asks QGIS to take the plugin away.
+    print("\n-- unload, then load again: what an in-place upgrade leaves behind")
+    from passage_species_status import plugin as _pl                     # noqa: E402
+
+    class _Iface(object):
+        """the four `iface` methods `initGui`/`unload` call, and a real QMenu behind them."""
+
+        def __init__(self):
+            from qgis.PyQt.QtWidgets import QMainWindow, QMenu
+            self._win = QMainWindow()
+            self._menu = QMenu("Vect&or", self._win)
+            self._bar = []
+
+        def mainWindow(self):
+            return self._win
+
+        def vectorMenu(self):
+            return self._menu
+
+        def addToolBarIcon(self, act):
+            self._bar.append(act)
+
+        def removeToolBarIcon(self, act):
+            if act in self._bar:
+                self._bar.remove(act)
+
+        def addPluginToVectorMenu(self, title, act):
+            # QGIS plants a SUBMENU named `title` holding the action, which is why matching on
+            # text alone finds the submenu and triggering it runs nothing
+            sub = self._menu.addMenu(title)
+            sub.addAction(act)
+
+        def removePluginVectorMenu(self, title, act):
+            for a in list(self._menu.actions()):
+                if a.menu() is not None and a.menu().title() == title:
+                    a.menu().removeAction(act)
+                    if not a.menu().actions():
+                        self._menu.removeAction(a)
+
+    def _leaves(ifc):
+        out = []
+        for a in ifc.vectorMenu().actions():
+            if a.menu() is not None:
+                out += [s for s in a.menu().actions() if s.text() == _pl.TITLE]
+            elif a.text() == _pl.TITLE:
+                out.append(a)
+        return out
+
+    _ifc = _Iface()
+    _p1 = _pl.ProtectedSpeciesCheck(_ifc)
+    _p1.initGui()
+    bar("★ one leaf action in the Vector menu after a load (MUST-PASS CONTROL: the rig really "
+        "planted one, so the counts below are about `unload`)",
+        len(_leaves(_ifc)) == 1 and len(_ifc._bar) == 1,
+        "%d leaf · %d toolbar" % (len(_leaves(_ifc)), len(_ifc._bar)))
+    _p1.run()
+    bar("★ …and the menu entry opens the window", _p1.dialog is not None
+        and _p1.dialog.windowTitle() == _pl.TITLE,
+        _p1.dialog.windowTitle() if _p1.dialog else None)
+    _p1.unload()
+    bar("⛔⛔ UNLOAD TAKES THE MENU ENTRY AND THE TOOLBAR ICON WITH IT — whatever survives an "
+        "unload survives into the version installed over it, as a control that answers to code "
+        "QGIS has already thrown away",
+        not _leaves(_ifc) and not _ifc._bar,
+        "%d leaf · %d toolbar" % (len(_leaves(_ifc)), len(_ifc._bar)))
+    bar("⛔ …and it drops the dialog it built. A cached window outlives the module it was "
+        "built from; `run` rebuilds one every time for exactly this reason",
+        _p1.dialog is None and _p1.action is None,
+        "dialog=%r action=%r" % (_p1.dialog, _p1.action))
+    _p2 = _pl.ProtectedSpeciesCheck(_ifc)
+    _p2.initGui()
+    bar("⛔⛔ loading again leaves exactly ONE leaf, not two — this is the upgrade path, and a "
+        "person facing two identical entries cannot tell which one runs the code they installed",
+        len(_leaves(_ifc)) == 1 and len(_ifc._bar) == 1,
+        "%d leaf · %d toolbar" % (len(_leaves(_ifc)), len(_ifc._bar)))
+    _p2.unload()
+    bar("* MUST-PASS NULL: the second unload empties it again — a menu that never held anything "
+        "would have passed both bars above for free",
+        not _leaves(_ifc), len(_leaves(_ifc)))
+    _p1 = _p2 = _ifc = None
+    gc.collect()
+
+    # ═════════════════════════════════════════════════════════════════════════════════
+    # ★★★★ A REAL PLACELESS FILE — 37,557 ROWS, 189 NAMES, NO COORDINATES
+    # ═════════════════════════════════════════════════════════════════════════════════
+    # ⛔⛔ EVERY UNPLACED BAR ABOVE IS GRADED ON A TWO-LINE CSV THIS FILE WRITES. That fixture
+    #   agrees with us about everything; the lead sentence a real unplaced file gets had therefore
+    #   never been read by a bar, and the MUST-FAIL one about the backbone statistic fired only on
+    #   the five-point memory layer, which HAS coordinates and so can never reach that branch.
+    print("\n-- Belfast's street-tree register, read as the CSV it is: 37,557 rows, no geometry")
+    if not os.path.exists(BELFAST_CSV):
+        bar("⛔ the Belfast register is present in the corpus — THIS BAR DID NOT RUN, it is not "
+            "green: the only real placeless file this suite holds is missing",
+            False, BELFAST_CSV)
+    else:
+        _bcopy = os.path.join(tmp, "belfast-trees.csv")
+        shutil.copyfile(BELFAST_CSV, _bcopy)
+        # ⛔ `geomType=none` IS THE POINT, and it is how the file arrives: the register carries
+        #   LONGITUDE and LATITUDE columns, and a person who does not wire them up — or whose
+        #   table simply has none — gets exactly this layer.
+        bel = QgsVectorLayer("file:///" + _bcopy.replace("\\", "/")
+                             + "?type=csv&geomType=none&detectTypes=yes",
+                             "belfast trees", "delimitedtext")
+        QgsProject.instance().addMapLayer(bel)
+        bar("★ the real register loads, all of it", bel.isValid() and bel.featureCount() > 37000,
+            "%d features" % bel.featureCount())
+        d_bel = ScreenDialog(FakeIface(), None)
+        _dlgs.append(d_bel)
+        _guess = client.guess_name_field([f.name() for f in bel.fields()],
+                                         d_bel._sample_of(bel))
+        bar("★ the column guess lands on `SPECIES`, not on `SPECIESTYPE` — which holds "
+            "« Cherry », a common name, and is the one column the door refuses",
+            _guess and _guess[0] == "SPECIES", _guess)
+        _brows, _bn, _bnop, _btr, _bblank = screen_task.name_values(bel, "SPECIES")
+        bar("★ 189 distinct names, every one of them placeless (MUST-PASS CONTROL: a file with "
+            "coordinates would put 0 here and the reconciliation below would prove nothing)",
+            len(_brows) == 189 and _bnop == 189, "%d names · %d without a place · %d blank"
+            % (len(_brows), _bnop, _bblank))
+        bar("⛔ and it is UNDER the cap, so nothing is silently dropped before the wire",
+            _btr == 0, "%d ≤ %d" % (len(_brows), client.MAX_NAMES))
+        if live:
+            said_b = drive(d_bel, app, bel, "SPECIES")
+            _blead = said_b.splitlines()[0] if said_b else ""
+            # the OPENING BLOCK is everything before the first section heading — which is
+            #   where a hurried reader stops, and where the place question has always gone
+            _bopen = said_b.split("NAMED,")[0].split("NOT DESIGNATED")[0]
+            _bhead3 = "\n".join(_bopen.splitlines()[:8])
+            # ⛔⛔ THE MUST-FAIL BAR THAT COULD NOT FIRE. It read « never leads with the backbone
+            #   match » and was graded only on the placed fixture. On this file the door DOES lead
+            #   with it — « 161 of your 188 names match GBIF's backbone » — and that is the owner's
+            #   ruling of 2026-09-17: with no place, the count may be the backbone match and NEVER
+            #   a register tally, because a register tally with no place folds one province's act
+            #   into another province's file. What the rule actually forbids is the statistic
+            #   standing ALONE, so the test is now conditional: it may lead only with the place
+            #   question directly beneath it.
+            bar("⛔⛔ on a REAL placeless file the backbone statistic may lead ONLY with the "
+                "place question under it — a count of how many names we recognised, alone at the "
+                "top of a protected-species answer, answers a question nobody asked",
+                not any(w in _blead for w in ("match GBIF", "backbone"))
+                or ("not establish" in _bhead3 or "province" in _bhead3.lower()),
+                _blead[:88])
+            bar("⛔ MUST-FAIL: and no register count leads a file that states no place (#499) — "
+                "« N of your M species are listed » here would fold every jurisdiction we hold "
+                "into one number",
+                "listed under a law" not in _blead and "are listed" not in _blead, _blead[:88])
+            bar("⛔⛔ MUST-FAIL: no heading claims a law is IN FORCE HERE on a file that states "
+                "no place — the sixth instance of this defect was exactly that heading, over "
+                "these exact rows",
+                "IN FORCE HERE" not in said_b,
+                [l for l in said_b.splitlines() if "IN FORCE HERE" in l][:1] or "none, correct")
+            # ★★ THE OFF-BY-ONE, ON THE FILE IT WAS FOUND ON
+            bar("⛔⛔ 189 values went up and 188 rows came back: the difference is NAMED in the "
+                "panel. `not_screened` read 0 on this same run, because a value the door refuses "
+                "as a name was never in its count",
+                "came back with NO row" in said_b,
+                [l for l in said_b.splitlines() if "NO row" in l][:1] or "NOT NAMED")
+            bar("★ …and the value it names is the one the door dropped",
+                "N/A" in "".join(l for l in said_b.splitlines() if "NO row" in l),
+                [l[:96] for l in said_b.splitlines() if "NO row" in l][:1])
+            bar("★ MUST-PASS CONTROL, BOTH NUMBERS: the fold is what makes that a 1 — comparing "
+                "the RAW layer values instead of the sent ones reports the two names the "
+                "sanitiser rewrote as drops too",
+                len(client.unanswered([r[0] for r in _brows], d_bel._answer or {})) == 1
+                and len([r for r in _brows
+                         if r[0] not in {n.get("value")
+                                         for n in (d_bel._answer or {}).get("names") or ()}]) == 3,
+                "folded: %d  ·  raw: %d"
+                % (len(client.unanswered([r[0] for r in _brows], d_bel._answer or {})),
+                   len([r for r in _brows
+                        if r[0] not in {n.get("value")
+                                        for n in (d_bel._answer or {}).get("names") or ()}])))
+        # ⛔ THIS SECTION RUNS AFTER THE CORPUS BLOCK'S OWN TEARDOWN, so it tears itself down
+        #   the same way. Without it the layer and the dialog were destroyed at interpreter
+        #   shutdown — after `exitQgis()` has taken away the provider registry their destructors
+        #   call into — and the whole suite ended in a SEGFAULT with every bar already green.
+        try:
+            d_bel.close()
+            d_bel.deleteLater()
+        except Exception:                                            # noqa: BLE001
+            pass
+        app.processEvents()
+        QgsProject.instance().removeAllMapLayers()
+        app.processEvents()
+        bel = d_bel = None
+        gc.collect()
+        app.processEvents()
+
+    # ══════════════════════════════════════════════════════════════════════════════════
+    # ★★★★ SIX PATHS NOBODY HAD RUN — a selection, an open edit session, a line, a multipart,
+    #      a multi-layer GeoPackage, and a shapefile whose dBASE is not UTF-8
+    # ══════════════════════════════════════════════════════════════════════════════════
+    # ⛔ EVERY BAR ABOVE SCREENS A LAYER IN THE STATE WE PUT IT IN. A person's layer is in the
+    #   state THEY put it in — a selection from a previous step, an edit session they have not
+    #   committed, a geometry that is not a point, a GeoPackage holding six layers, a shapefile
+    #   written by software that predates UTF-8. None of those had ever been run.
+    print("\n-- six paths nobody had run")
+    _p6 = QgsVectorLayer("Point?crs=EPSG:4326", "six paths", "memory")
+    _p6.dataProvider().addAttributes([QgsField("scientificName", QVariant.String, len=80)])
+    _p6.updateFields()
+    _fs6 = []
+    for _i, _n6 in enumerate(["Myotis lucifugus", "Acer saccharum", "Asio flammeus",
+                              "Antrostomus vociferus"]):
+        _f6 = QgsFeature(_p6.fields())
+        _f6.setAttribute("scientificName", _n6)
+        _f6.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(-73.59 + _i * 0.01,
+                                                           45.50 + _i * 0.01)))
+        _fs6.append(_f6)
+    _p6.dataProvider().addFeatures(_fs6)
+    QgsProject.instance().addMapLayer(_p6)
+
+    # ① A SELECTION
+    _p6.selectByIds([_f.id() for _f in _p6.getFeatures()][:1])
+    _r6, _nf6, _nop6, _tr6, _bl6 = screen_task.name_values(_p6, "scientificName")
+    bar("⛔ a SELECTION does not narrow the screening — measured, and it is the right answer: a "
+        "name outside the selection is still in the file the person will publish",
+        _nf6 == _p6.featureCount() and len(_r6) == 4,
+        "%d selected · %d read of %d" % (_p6.selectedFeatureCount(), _nf6, _p6.featureCount()))
+    _d6 = ScreenDialog(FakeIface(), None)
+    _dlgs6 = [_d6]
+    _d6._load_layers()
+    for _i in range(_d6.layer_box.count()):
+        if _d6.layer_box.itemData(_i) == _p6.id():
+            _d6.layer_box.setCurrentIndex(_i)
+            break
+    _names6 = [_d6.field_box.itemText(_i) for _i in range(_d6.field_box.count())]
+    if "scientificName" in _names6:
+        _d6.field_box.setCurrentIndex(_names6.index("scientificName"))
+    _d6.write_back.setChecked(False)
+    _d6._run()
+    _said6 = _d6.out.toPlainText()
+    bar("⛔⛔ …and the panel SAYS SO. It read « 4 distinct names read from 4 features » and "
+        "nothing about the selection — true, and read by somebody who believes they screened "
+        "what they had picked (§4: a choice we do not honour changes what the caller sees)",
+        "selected on this layer" in _said6,
+        [l[:96] for l in _said6.splitlines() if "selected" in l][:1] or "NOT SAID")
+    _p6.removeSelection()
+    _d6._run()
+    bar("* MUST-PASS NULL: with nothing selected the sentence is GONE — a caveat printed always "
+        "is a caveat nobody reads",
+        "selected on this layer" not in _d6.out.toPlainText(),
+        [l[:70] for l in _d6.out.toPlainText().splitlines() if "selected" in l][:1] or "absent")
+
+    # ② AN OPEN EDIT SESSION WHEN THE WRITE-BACK FIRES
+    _eg = os.path.join(tmp, "edit_session.gpkg")
+    _o6 = QgsVectorFileWriter.SaveVectorOptions()
+    _o6.driverName, _o6.layerName = "GPKG", "pts"
+    QgsVectorFileWriter.writeAsVectorFormatV3(_p6, _eg, QgsCoordinateTransformContext(), _o6)
+    _ed = QgsVectorLayer(_eg + "|layername=pts", "editable", "ogr")
+    QgsProject.instance().addMapLayer(_ed)
+    _ed.startEditing()
+    _first = next(_ed.getFeatures())
+    _ed.changeAttributeValue(_first.id(), _ed.fields().indexOf("scientificName"), "HELD IN BUFFER")
+    _ans6 = {"names": [{"value": _n, "hit": True, "designations": [], "assessed": []}
+                       for _n in ("Myotis lucifugus", "Acer saccharum", "Asio flammeus",
+                                  "Antrostomus vociferus")],
+             "register_cards": [], "coverage": {}}
+    _n6w, _why6 = screen_task.write_back(_ed, "scientificName", _ans6, "2026-09-17")
+    bar("⛔⛔ the write-back fires with an OPEN EDIT SESSION and does not lose the person's "
+        "uncommitted work — the six columns land, the session stays open, the buffered change "
+        "is still in the buffer",
+        _ed.isEditable()
+        and _ed.editBuffer().changedAttributeValues().get(_first.id(), {}) != {}
+        and all(_c in [_x.name() for _x in _ed.fields()] for _c, _w in client.COLUMNS),
+        "editable=%s buffered=%s n=%s" % (_ed.isEditable(),
+                                          bool(_ed.editBuffer().changedAttributeValues()), _n6w))
+    bar("⛔ …and the row whose name the person changed but has NOT committed is not written: "
+        "the write-back reads the value the layer shows, which is the buffered one",
+        _n6w == 3, "%d of 4 written · %r" % (_n6w, _why6))
+    _ed.rollBack()
+    _ed2 = QgsVectorLayer(_eg + "|layername=pts", "after rollback", "ogr")
+    bar("⚠ A ROLLBACK DOES NOT TAKE THE COLUMNS BACK — they were written through the provider, "
+        "not through the edit buffer, so Undo does not reach them. Measured, so it is a known "
+        "property rather than a surprise",
+        all(_c in [_x.name() for _x in _ed2.fields()] for _c, _w in client.COLUMNS),
+        [_x.name() for _x in _ed2.fields()])
+
+    # ③ A LINE, AND ④ A MULTIPART
+    _ln6 = QgsVectorLayer("LineString?crs=EPSG:4326", "a line layer", "memory")
+    _ln6.dataProvider().addAttributes([QgsField("scientificName", QVariant.String, len=80)])
+    _ln6.updateFields()
+    _lf = QgsFeature(_ln6.fields())
+    _lf.setAttribute("scientificName", "Myotis lucifugus")
+    _lf.setGeometry(QgsGeometry.fromWkt("LINESTRING(-73.6 45.5, -73.5 45.6)"))
+    _ln6.dataProvider().addFeatures([_lf])
+    _rl, _nl, _nopl, _trl, _bll = screen_task.name_values(_ln6, "scientificName")
+    bar("⛔ A LINE LAYER gives a usable position — the centroid of the line, in range. Every "
+        "other bar here is a point or a polygon; `centroid()` on a line had never been run",
+        len(_rl) == 1 and _nopl == 0 and abs(_rl[0][1] - 45.55) < 0.01
+        and abs(_rl[0][2] + 73.55) < 0.01, _rl)
+    _mp6 = QgsVectorLayer("MultiPolygon?crs=EPSG:4326", "a multipart layer", "memory")
+    _mp6.dataProvider().addAttributes([QgsField("scientificName", QVariant.String, len=80)])
+    _mp6.updateFields()
+    _mf = QgsFeature(_mp6.fields())
+    _mf.setAttribute("scientificName", "Asio flammeus")
+    _mf.setGeometry(QgsGeometry.fromWkt(
+        "MULTIPOLYGON(((-73.6 45.5,-73.5 45.5,-73.5 45.6,-73.6 45.6,-73.6 45.5)),"
+        "((-72.6 46.5,-72.5 46.5,-72.5 46.6,-72.6 46.6,-72.6 46.5)))"))
+    _mp6.dataProvider().addFeatures([_mf])
+    _rm, _nm, _nopm, _trm, _blm = screen_task.name_values(_mp6, "scientificName")
+    bar("⛔ A MULTIPART FEATURE gives ONE position — the centroid of all its parts, which may "
+        "lie in none of them. That is the documented promise (« one representative coordinate "
+        "per name ») and it stays inside the parts' bounding box",
+        len(_rm) == 1 and _nopm == 0
+        and 45.5 <= _rm[0][1] <= 46.6 and -73.6 <= _rm[0][2] <= -72.5, _rm)
+
+    # ⑤ A MULTI-LAYER GEOPACKAGE
+    _mg = os.path.join(tmp, "two_layers.gpkg")
+    _oa = QgsVectorFileWriter.SaveVectorOptions()
+    _oa.driverName, _oa.layerName = "GPKG", "first"
+    QgsVectorFileWriter.writeAsVectorFormatV3(_p6, _mg, QgsCoordinateTransformContext(), _oa)
+    _ob = QgsVectorFileWriter.SaveVectorOptions()
+    _ob.driverName, _ob.layerName = "GPKG", "second"
+    _ob.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer
+    QgsVectorFileWriter.writeAsVectorFormatV3(_ln6, _mg, QgsCoordinateTransformContext(), _ob)
+    _la = QgsVectorLayer(_mg + "|layername=first", "first", "ogr")
+    _lb = QgsVectorLayer(_mg + "|layername=second", "second", "ogr")
+    _na, _wa = screen_task.write_back(_la, "scientificName", _ans6, "2026-09-17")
+    _ca = QgsVectorLayer(_mg + "|layername=first", "chk a", "ogr")
+    _cb = QgsVectorLayer(_mg + "|layername=second", "chk b", "ogr")
+    bar("⛔⛔ A MULTI-LAYER GEOPACKAGE: writing the six columns to ONE layer leaves the OTHER "
+        "alone. Both live in one file and one SQLite connection, and a write that reached the "
+        "wrong table would be invisible until somebody opened it",
+        all(_c in [_x.name() for _x in _ca.fields()] for _c, _w in client.COLUMNS)
+        and not any(_c in [_x.name() for _x in _cb.fields()] for _c, _w in client.COLUMNS),
+        "first: %d cols · second: %d cols" % (len(_ca.fields()), len(_cb.fields())))
+    _nb2, _wb2 = screen_task.write_back(_lb, "scientificName", _ans6, "2026-09-17")
+    _cb2 = QgsVectorLayer(_mg + "|layername=second", "chk b2", "ogr")
+    bar("★ …and the second layer of the same file takes them too, on its own",
+        all(_c in [_x.name() for _x in _cb2.fields()] for _c, _w in client.COLUMNS),
+        "n=%s why=%r" % (_nb2, _wb2))
+
+    # ⑥ A SHAPEFILE WHOSE dBASE IS NOT UTF-8
+    _lat = QgsVectorLayer("Point?crs=EPSG:4326", "latin1", "memory")
+    _lat.dataProvider().addAttributes([QgsField("NOM_SCIEN", QVariant.String, len=80),
+                                       QgsField("NOTE", QVariant.String, len=80)])
+    _lat.updateFields()
+    _lfeat = QgsFeature(_lat.fields())
+    _accented = u"relevé près de la forêt"
+    _lfeat.setAttributes([u"Myotis lucifugus", _accented])
+    _lfeat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(-73.59, 45.50)))
+    _lat.dataProvider().addFeatures([_lfeat])
+    _lshp = os.path.join(tmp, "latin1.shp")
+    _ol = QgsVectorFileWriter.SaveVectorOptions()
+    _ol.driverName, _ol.layerName = "ESRI Shapefile", "latin1"
+    _ol.fileEncoding = "ISO-8859-1"
+    QgsVectorFileWriter.writeAsVectorFormatV3(_lat, _lshp, QgsCoordinateTransformContext(), _ol)
+    _lr = QgsVectorLayer(_lshp, "latin1 read", "ogr")
+    bar("★ a NON-UTF8 dBASE reads back its accents (MUST-PASS CONTROL: if this were mojibake "
+        "the bar below would be grading the writer, not the write-back)",
+        next(_lr.getFeatures()).attribute("NOTE") == _accented,
+        "%r · encoding %r" % (next(_lr.getFeatures()).attribute("NOTE"),
+                                _lr.dataProvider().encoding()))
+    _nl6, _wl6 = screen_task.write_back(_lr, "NOM_SCIEN", _ans6, "2026-09-17")
+    _lr2 = QgsVectorLayer(_lshp, "latin1 reread", "ogr")
+    bar("⛔⛔ the six columns land in a NON-UTF8 dBASE and the accented cell beside them is "
+        "unharmed — a write-back that re-encodes a file is the kind of damage nobody attributes "
+        "to a plugin they ran once",
+        all(_c in [_x.name() for _x in _lr2.fields()] for _c, _w in client.COLUMNS)
+        and next(_lr2.getFeatures()).attribute("NOTE") == _accented,
+        "n=%s · NOTE %r" % (_nl6, next(_lr2.getFeatures()).attribute("NOTE")))
+
+    for _w in _dlgs6:
+        try:
+            _w.close()
+            _w.deleteLater()
+        except Exception:                                            # noqa: BLE001
+            pass
+    del _dlgs6[:]
+    app.processEvents()
+    QgsProject.instance().removeAllMapLayers()
+    app.processEvents()
+    _p6 = _ed = _ed2 = _ln6 = _mp6 = _la = _lb = _ca = _cb = _cb2 = None    # noqa: F841
+    _lat = _lr = _lr2 = _d6 = None                                          # noqa: F841
+    gc.collect()
+    app.processEvents()
+
+    # ══════════════════════════════════════════════════════════════════════════════════
+    # ★★★ OVER THE CAP — 5,001 DISTINCT NAMES, AND WHAT THE PERSON IS TOLD
+    # ══════════════════════════════════════════════════════════════════════════════════
+    # ⛔ THE CAP HAD NEVER BEEN CROSSED. `MAX_NAMES` is 5,000 and the largest layer this suite
+    #   holds has 286 distinct names, so `truncated` had never once been True and the sentence it
+    #   turns on had never been printed. A cap that drops 1,400 names in silence is the single
+    #   worst failure this plugin could have — a consultant would read a clean verdict over a
+    #   third of their checklist.
+    # ⚠ AND IT IS GRADED WITHOUT THE DOOR, ON PURPOSE. What is unrun here is the ARITHMETIC and
+    #   the SENTENCE, not the service: the README already carries a live measurement of 5,000
+    #   distinct names returned whole in 23.8 s. Sending five thousand invented binomials on every
+    #   run of every build would buy one number we already have and spend a real call to get it.
+    print("\n-- over the cap: 5,001 distinct names")
+    _big = QgsVectorLayer("Point?crs=EPSG:4326", "over the cap", "memory")
+    _big.dataProvider().addAttributes([QgsField("scientificName", QVariant.String, len=80)])
+    _big.updateFields()
+    _bigf = []
+    for _i in range(client.MAX_NAMES + 1):
+        _bf = QgsFeature(_big.fields())
+        _bf.setAttribute("scientificName", "Genus%05d species" % _i)
+        _bf.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(-73.59, 45.50)))
+        _bigf.append(_bf)
+    _big.dataProvider().addFeatures(_bigf)
+    QgsProject.instance().addMapLayer(_big)
+    _rb, _nb, _nopb, _trb, _blb = screen_task.name_values(_big, "scientificName")
+    bar("⛔⛔ over the cap, EXACTLY `MAX_NAMES` go on the wire — and the caller is handed HOW "
+        "MANY there were, not a bool saying that some were dropped",
+        len(_rb) == client.MAX_NAMES and _trb == client.MAX_NAMES + 1
+        and _nb == client.MAX_NAMES + 1,
+        "%d of %d features · %d sent · %d distinct"
+        % (_nb, _big.featureCount(), len(_rb), _trb))
+    _dbig = ScreenDialog(FakeIface(), None)
+    _dlgsb = [_dbig]
+    _dbig._load_layers()
+    for _i in range(_dbig.layer_box.count()):
+        if _dbig.layer_box.itemData(_i) == _big.id():
+            _dbig.layer_box.setCurrentIndex(_i)
+            break
+    _nmb = [_dbig.field_box.itemText(_i) for _i in range(_dbig.field_box.count())]
+    if "scientificName" in _nmb:
+        _dbig.field_box.setCurrentIndex(_nmb.index("scientificName"))
+    _dbig.write_back.setChecked(False)
+    _dbig._run()
+    _saidb = _dbig.out.toPlainText()
+    bar("⛔⛔ …and the person is TOLD, in the first lines, HOW MANY were left behind and what "
+        "to do — a clean-looking verdict over a third of a checklist is the worst thing this "
+        "plugin could do, and « the cap was reached » does not say whether that is 1 or 1,400",
+        "only the first %d were sent" % client.MAX_NAMES in _saidb
+        and "1 name was NOT screened" in _saidb and "split the layer" in _saidb,
+        [l[:112] for l in _saidb.splitlines() if "were sent" in l][:1] or "NOT SAID")
+    bar("⛔ …and the line above it counts what was READ, not what was sent — it said « 5000 "
+        "distinct names read from 5001 features », understating the read by exactly the number "
+        "that was dropped",
+        "%d distinct names read from %d features" % (client.MAX_NAMES + 1,
+                                                     client.MAX_NAMES + 1) in _saidb
+        and "the first %d sent" % client.MAX_NAMES in _saidb,
+        [l[:96] for l in _saidb.splitlines() if "distinct names read" in l][:1])
+    _small = QgsVectorLayer("Point?crs=EPSG:4326", "under the cap", "memory")
+    _small.dataProvider().addAttributes([QgsField("scientificName", QVariant.String, len=80)])
+    _small.updateFields()
+    _sf = QgsFeature(_small.fields())
+    _sf.setAttribute("scientificName", "Myotis lucifugus")
+    _sf.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(-73.59, 45.50)))
+    _small.dataProvider().addFeatures([_sf])
+    bar("* MUST-PASS NULL: a layer UNDER the cap reports 0, and its panel says none of it — a "
+        "count that is always set would have passed the two bars above for free",
+        screen_task.name_values(_small, "scientificName")[3] == 0,
+        screen_task.name_values(_small, "scientificName")[3])
+    for _w in _dlgsb:
+        try:
+            _w.close()
+            _w.deleteLater()
+        except Exception:                                            # noqa: BLE001
+            pass
+    del _dlgsb[:]
+    app.processEvents()
+    QgsProject.instance().removeAllMapLayers()
+    app.processEvents()
+    _big = _dbig = _bigf = _small = None                             # noqa: F841
+    gc.collect()
+    app.processEvents()
 
     print("\n%s" % ("ALL GREEN" if not FAILED
                     else "RED: %d\n  %s" % (len(FAILED), "\n  ".join(FAILED))))
