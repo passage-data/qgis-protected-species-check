@@ -25,7 +25,7 @@ TIMEOUT_S = 300
 #   looks exactly like nobody using the plugin. Barred in `client_selftest` against that file.
 # ⛔ NOTHING ABOUT THE MACHINE RIDES HERE. `urllib` would otherwise send `Python-urllib/3.x`; a
 #   token of ours replaces it rather than appending to it, and no QGIS build, OS or host is added.
-USER_AGENT = "passage-data-qgis-protected-species-check/0.1.6"
+USER_AGENT = "passage-data-qgis-protected-species-check/0.1.7"
 
 # ⛔⛔ WHAT THE BARS SEND, SO THAT THE PRODUCT'S NUMBER IS THE PRODUCT'S. Both suites screen
 #   against the LIVE door — that is the point of them — and until 2026-09-17 they did it under
@@ -35,7 +35,7 @@ USER_AGENT = "passage-data-qgis-protected-species-check/0.1.6"
 # ⛔ IT IS NOT A PREFIX OF THE PRODUCT TOKEN, AND THE PRODUCT TOKEN IS NOT A PREFIX OF IT —
 #   the door prefix-matches, so either would put the suites straight back into the product's
 #   count. Barred in `client_selftest`, against `funnel_meter` itself.
-SELFTEST_USER_AGENT = "passage-data-qgis-selftest/0.1.6"
+SELFTEST_USER_AGENT = "passage-data-qgis-selftest/0.1.7"
 
 # ⛔⛔ MEASURED, NOT GUESSED (2026-09-17, live door): 100 / 400 / 900 / 2,000 / 5,000 distinct
 #   names all returned whole, `not_screened: 0`, the slowest pass 34.6 s. The first cut of this
@@ -193,7 +193,41 @@ def _words(fold):
     return out
 
 
-def guess_name_field(fields):
+#: ⛔ A COLUMN WHOSE NAME ENDS THIS WAY IS AN IDENTIFIER, WHATEVER ELSE IT CONTAINS. Measured
+#: across all 730 corpus layers: `TaxonID` was recommended on four of them, because the hint
+#: `taxon` matches an identifier exactly as happily as it matches a name.
+IDENTIFIER_TAILS = ("id", "key", "code")
+
+
+def _is_identifier(fold):
+    """→ True when this column NAME reads as an identifier rather than a name."""
+    words = _words(fold)
+    return bool(words) and (words[-1] in ("id", "fid", "gid", "oid", "uid", "no", "nr", "num")
+                            or fold.endswith(IDENTIFIER_TAILS))
+
+
+def _mostly_numbers(values):
+    """→ True when the sampled values are overwhelmingly numeric — a name never is.
+
+    ⛔ THE VALUES ARE THE ONLY THING THAT CATCHES `taxonid_left`, whose name gives nothing away
+      and whose contents are `100, 130, 150, 160…`. An EMPTY sample decides nothing: a column
+      nobody filled is not thereby an identifier, and the panel already says when a field holds
+      no values at all.
+    """
+    seen = [str(v).strip() for v in (values or ()) if str(v or "").strip()]
+    if not seen:
+        return False
+    n_num = 0
+    for v in seen:
+        try:
+            float(v.replace(",", ""))
+            n_num += 1
+        except ValueError:
+            pass
+    return n_num >= 0.8 * len(seen)
+
+
+def guess_name_field(fields, values_for=None):
     """→ (the field that most likely holds a binomial or None, a sentence for the person).
 
     ⛔⛔ THE DEFAULT IT REPLACED LANDED ON THE COMMON-NAME COLUMN. A `QComboBox` opens on index
@@ -204,6 +238,9 @@ def guess_name_field(fields):
       `SPECIES` holds `mannifera`; the binomial is `GENUS || ' ' || SPECIES`, in 290 of its 298
       rows, while its `BOTANICAL_` column is filled in 7. An epithet screened as a name matches
       nothing and reads as a clean layer, so the pair is NAMED to the person instead.
+    ⚠ `values_for(field) → [value]` IS OPTIONAL AND THE CALLER SUPPLIES IT. Without it the guess
+      is made on column names alone, which is all a caller holding no layer can do; with it, a
+      candidate whose contents are numbers is passed over. The dialog always supplies it.
     """
     by_fold = {}
     for f in fields or ():
@@ -216,8 +253,14 @@ def guess_name_field(fields):
         advice = (u"This layer splits the name across “%s” and “%s” — neither column holds a "
                   u"binomial on its own. Build one with the field calculator (%s || ' ' || %s) "
                   u"and screen that field." % (genus, epithet, genus, epithet))
+    def rejected(fold, original):
+        """→ True when this candidate is an identifier by name, or a number column by content."""
+        if _is_identifier(fold):
+            return True
+        return values_for is not None and _mostly_numbers(values_for(original))
+
     for want in NAME_FIELD_WANTS:
-        if want in by_fold:
+        if want in by_fold and not rejected(want, by_fold[want]):
             return by_fold[want], advice
     for fold, original in by_fold.items():
         # ⛔⛔ A HINT MAY MATCH A COLUMN NAME, NEVER A SENTENCE. Measured 2026-09-17 against a
@@ -225,9 +268,14 @@ def guess_name_field(fields):
         #   activities (M)` contains "scientif", and a plugin that recommends a column of
         #   employment statistics has made its recommendation worth nothing. A real name column
         #   is one to three words — `BOTANICAL_`, `nom scientifique`, `Scientific name (accepted)`.
-        if len(_words(fold)) <= 3 and any(h in fold for h in NAME_FIELD_HINTS):
+        # ⛔ AND THIS FREE TEST COMES FIRST. `rejected()` reads the column, which on a sparse one
+        #   is a full scan; asking it about every column of every layer before asking whether the
+        #   NAME is even plausible cost thirty scans to learn nothing, measured on the corpus
+        #   sweep. A candidate is only worth opening once its name has earned it.
+        if len(_words(fold)) <= 3 and any(h in fold for h in NAME_FIELD_HINTS) \
+                and not rejected(fold, original):
             return original, advice
-    if epithet and not genus:
+    if epithet and not genus and not rejected(str(epithet).strip().lower(), epithet):
         return epithet, advice                       # a lone `species` column usually IS the name
     return None, advice or (u"No column here looks like it holds a scientific name. Choose the "
                             u"one that does — one binomial per feature.")

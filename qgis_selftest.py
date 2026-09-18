@@ -248,6 +248,39 @@ def main():
         d.grab().save(os.path.join(shot, "dialog_before.png"))
         print("       (layout only — offscreen has no fonts, so glyphs render as boxes)")
 
+    # ═══════════════════════════════════════════════════════════════════════════════════════
+    # ⛔⛔ A HEADING MAY NOT ASSERT WHAT THE ROWS UNDER IT DENY
+    # ═══════════════════════════════════════════════════════════════════════════════════════
+    # Found on Belfast's street-tree register, a real 37,557-feature file with no coordinates:
+    # the rows read `[not established]`, the door had said it could not establish whether the
+    # instrument reaches those records, and the heading above them said IN FORCE HERE.
+    print("\n-- the section heading, against the marks on its own rows")
+    def _answer(applies):
+        return {"headline": "h", "place_established": applies is not None,
+                "register_cards": [{"register": "ca_sara", "instrument": "Species at Risk Act",
+                                    "jurisdiction": "CA", "legal_instrument": True}],
+                "names": [{"value": "Myotis lucifugus", "hit": True, "match": "EXACT",
+                           "answered": True,
+                           "designations": [{"register": "ca_sara", "outcome": "listed",
+                                             "status": "Endangered", "applies": applies}]}]}
+    _unest = d._report(_answer(None))
+    bar("⛔⛔ with the place NOT established, the heading does NOT claim the law is in force — "
+        "every row beneath it is marked `not established`",
+        "IN FORCE HERE" not in _unest and "NOT ESTABLISHED" in _unest,
+        [l for l in _unest.splitlines() if l.startswith("LISTED")][:1])
+    bar("⛔ …and the row and its heading agree",
+        "[not established" in _unest,
+        [l.strip()[-30:] for l in _unest.splitlines() if "not established" in l][:1])
+    # ⛔ MUST-PASS NULL — the control that proves the heading is not simply always hedged.
+    _inforce = d._report(_answer(True))
+    bar("* MUST-PASS NULL: a law that DOES reach these records still earns the plain heading",
+        "LISTED UNDER A LAW IN FORCE HERE" in _inforce,
+        [l for l in _inforce.splitlines() if l.startswith("LISTED")][:1])
+    bar("⛔ MUST-FAIL: the two headings are not the same string — a hedge that never varies is "
+        "not a hedge",
+        [l for l in _unest.splitlines() if l.startswith("LISTED")]
+        != [l for l in _inforce.splitlines() if l.startswith("LISTED")])
+
     if live:
         print("\n-- Check is clicked, and the panel is read back")
         d._run()
@@ -417,6 +450,73 @@ def main():
                     [c for c, _w in client.COLUMNS if c not in gnames] or "all six")
                 del gagain
                 QgsProject.instance().removeMapLayer(gl.id())
+
+            # ══════════════════════════════════════════════════════════════════════════════════
+            # ★★★★ THE SAME LAYER, SCREENED TWICE — the commonest second thing a person does
+            # ══════════════════════════════════════════════════════════════════════════════════
+            # ⛔⛔ NOTHING HAD EVER RUN THIS. Every write-back bar in this file writes to a layer
+            #   that has never carried the six columns, and the obvious next action — fix a name,
+            #   click Check again — goes down a different path: `addAttributes` is skipped, and
+            #   the write has to REPLACE six cells that already hold a verdict. A second run that
+            #   appended, or that quietly wrote nothing, would leave the older verdict on a file
+            #   somebody files with a regulator.
+            print("\n-- the SAME layer screened twice, with the six columns already on it")
+            _first = {"names": [{"value": "Rangifer tarandus caribou", "hit": True,
+                                 "match": "EXACT", "answered": True,
+                                 "designations": [{"register": "ca_sara", "outcome": "listed",
+                                                   "status": "FIRST RUN", "applies": True}]}],
+                      "register_cards": [], "coverage": {}}
+            _second = {"names": [{"value": "Rangifer tarandus caribou", "hit": True,
+                                  "match": "EXACT", "answered": True,
+                                  "designations": [{"register": "ca_sara", "outcome": "listed",
+                                                    "status": "SECOND RUN", "applies": True}]}],
+                       "register_cards": [], "coverage": {}}
+            _n1, _w1 = screen_task.write_back(real, "NOM_SCIEN", _first, "2026-01-01")
+            _cols_after_first = len([f.name() for f in real.fields()])
+            _n2, _w2 = screen_task.write_back(real, "NOM_SCIEN", _second, "2026-02-02")
+            bar("★ the second run writes the same features as the first",
+                _n1 == _n2 == real.featureCount(), "%s then %s" % (_n1, _n2))
+            bar("⛔ …and adds NO seventh column — the six already exist and are reused",
+                len([f.name() for f in real.fields()]) == _cols_after_first,
+                len([f.name() for f in real.fields()]))
+            _re = QgsVectorLayer(shp, "caribou (twice)", "ogr")
+            _vals2 = {}
+            for _f in _re.getFeatures():
+                _vals2 = {c: _f.attribute(c) for c, _w in client.COLUMNS}
+            bar("⛔⛔ THE CELL ON DISK HOLDS THE SECOND VERDICT, NOT THE FIRST AND NOT BOTH — a "
+                "re-screen that left the old answer behind is the worst shape this can take",
+                "SECOND RUN" in (_vals2.get("pd_law") or "")
+                and "FIRST RUN" not in (_vals2.get("pd_law") or ""),
+                (_vals2.get("pd_law") or "")[:60])
+            bar("⛔ …and the date moved with it, so `pd_check` is not the older run's",
+                (_vals2.get("pd_check") or "").startswith("2026-02-02"), _vals2.get("pd_check"))
+            del _re
+
+            # ══════════════════════════════════════════════════════════════════════════════════
+            # ★★★★ A LAYER WITH A FILTER ON IT — the verdict then covers PART of the file
+            # ══════════════════════════════════════════════════════════════════════════════════
+            # ⛔⛔ A SUBSET STRING IS A LIMIT THAT EATS INFORMATION. `getFeatures()` honours it
+            #   silently, so a person who filtered their layer — which is what the filter is FOR —
+            #   gets a verdict about the rows they can see and a panel that says nothing about the
+            #   rows they cannot. That is the same defect as the blank name cells, arriving from
+            #   the provider instead of from the data.
+            print("\n-- a layer with a FILTER applied")
+            _all = real.featureCount()
+            real.setSubsetString("\"NOM_SCIEN\" = 'NOTHING MATCHES THIS'")
+            _fr, _ffeat, _fnop, _ftr, _fblank = screen_task.name_values(real, "NOM_SCIEN")
+            bar("the read honours the layer's filter, as QGIS does everywhere else",
+                _ffeat == 0 and real.featureCount() == 0,
+                "%d of %d feature(s) visible" % (real.featureCount(), _all))
+            d11 = ScreenDialog(FakeIface(), None)
+            _dlgs.append(d11)
+            said_f = drive(d11, app, real, "NOM_SCIEN", wait=5)
+            bar("⛔⛔ THE PERSON IS TOLD A FILTER IS HIDING ROWS — a verdict that covers the rows "
+                "you can see, on a page that never says so, is a verdict about the wrong file",
+                "filter" in said_f.lower() or "subset" in said_f.lower(),
+                said_f.splitlines()[0][:100] if said_f else "(empty)")
+            real.setSubsetString("")
+            bar("* MUST-PASS NULL: the filter comes off and the layer is whole again",
+                real.featureCount() == _all, real.featureCount())
 
             # ══════════════════════════════════════════════════════════════════════════════════
             # ⛔⛔ A PROVIDER THAT REFUSES NEW COLUMNS MUST SAY SO — NEVER HALF-WRITE

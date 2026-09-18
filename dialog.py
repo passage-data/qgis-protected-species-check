@@ -117,6 +117,31 @@ class ScreenDialog(QDialog):
         lyr = QgsProject.instance().mapLayer(lid) if lid else None
         return lyr if isinstance(lyr, QgsVectorLayer) else None
 
+    def _sample_of(self, layer, n=25):
+        """→ a `values_for(field)` that reads the first `n` non-empty values, once per field.
+
+        ⚠ BOUNDED AND CACHED. This runs every time the layer combo changes, on layers of 65,000
+          features; reading the whole column to decide which column to read would be a freeze the
+          person cannot explain.
+        """
+        cache = {}
+
+        def values_for(field):
+            if field in cache:
+                return cache[field]
+            out = []
+            idx = layer.fields().indexOf(field)
+            if idx >= 0:
+                for f in layer.getFeatures():
+                    v = screen_task._text(f.attribute(idx))
+                    if v:
+                        out.append(v)
+                    if len(out) >= n:
+                        break
+            cache[field] = out
+            return out
+        return values_for
+
     def _layer_changed(self):
         self.field_box.clear()
         lyr = self._current_layer()
@@ -128,7 +153,11 @@ class ScreenDialog(QDialog):
         #   HOLD. It compared case-sensitively against a list with `SCIENTIFIC` and `NOM_LATIN`
         #   in it, while the corpus carries `scientific`, `NOM_SCIEN` and `BOTANICAL_`. A combo
         #   that recognises nothing opens on column 0 — which on the bird atlas is `common_nam`.
-        guessed, self._guess_says = client.guess_name_field(names)
+        # ⛔ THE VALUES ARE SAMPLED, NOT JUST THE NAMES. Swept across 730 corpus layers, the
+        #   name-only guess recommended `TaxonID` on four and `taxonid_left` — holding
+        #   `100, 130, 150…` — on two more. A recommendation is worth nothing if it can point at
+        #   a join key, and the column's own contents settle it in twenty-five reads.
+        guessed, self._guess_says = client.guess_name_field(names, self._sample_of(lyr))
         if guessed in names:
             self.field_box.setCurrentIndex(names.index(guessed))
         # ⛔⛔ `geometryType() is not None` WAS ALWAYS TRUE, so this branch never once fired.
@@ -168,10 +197,24 @@ class ScreenDialog(QDialog):
             self.out.setPlainText("Choose the field that holds the scientific names.")
             return
         rows, n_feat, n_no_place, truncated, n_blank = screen_task.name_values(lyr, field)
+        # ⛔⛔ A FILTER IS A LIMIT THAT EATS INFORMATION, AND IT WAS INVISIBLE HERE. QGIS honours a
+        #   subset string everywhere, including in `getFeatures()`, so a filtered layer is screened
+        #   in part and the answer reads as if it covered the file. Worse on the empty path: the
+        #   window blamed the FIELD — "choose the field that holds one scientific name" — for a
+        #   layer whose field was right and whose rows were simply hidden.
+        subset = ""
+        try:
+            subset = (lyr.subsetString() or "").strip()
+        except Exception:                                            # noqa: BLE001
+            pass                                                     # a provider without filters
         if not rows:
             self.out.setPlainText(
-                "No values were found under “%s”. Choose the field that holds one "
-                "scientific name per feature." % field)
+                ("No values were found under “%s” — but a FILTER is active on this layer "
+                 "(%s), so its rows are hidden from this window exactly as they are from the "
+                 "map. Clear the filter, or choose the field that holds one scientific name "
+                 "per feature." % (field, client._short(subset, 90))) if subset else
+                ("No values were found under “%s”. Choose the field that holds one "
+                 "scientific name per feature." % field))
             return
         # ⛔⛔ THESE SURVIVE THE ANSWER. Until 0.1.5 `_done` replaced the whole panel with the
         #   report, so the truncation notice and the "no usable geometry" count existed only
@@ -181,6 +224,14 @@ class ScreenDialog(QDialog):
                             % (len(rows), "" if len(rows) == 1 else "s", n_feat,
                                "" if n_feat == 1 else "s", field))
         self._caveats = []
+        if subset:
+            # ⚠ THE COUNT IS THE ONE WE CAN STAND BEHIND: the features this run actually read.
+            #   The layer's own `featureCount()` honours the filter too, so the number hidden is
+            #   not ours to state, and a made-up denominator would be worse than none.
+            self._caveats.append(
+                "⚠ A FILTER IS ACTIVE ON THIS LAYER (%s). This verdict covers the %d feature(s) "
+                "it shows, not the whole file."
+                % (client._short(subset, 90), n_feat + n_blank))
         lead = [self._provenance]
         if n_blank:
             # ⛔⛔ THE FEATURES THAT CARRY NO NAME ARE NAMED, IN THE FIRST THREE LINES. Measured
@@ -323,7 +374,19 @@ class ScreenDialog(QDialog):
                          "It is" if n_qualified == 1 else "They are",
                          "it is" if n_qualified == 1 else "they are"), ""]
 
-        for bucket, head in ((listed, "LISTED UNDER A LAW IN FORCE HERE"),
+        # ⛔⛔ THE HEADING MAY NOT ASSERT WHAT THE ROWS UNDER IT DENY. It read
+        #   "LISTED UNDER A LAW IN FORCE HERE" unconditionally, and on a file that states no place
+        #   every row beneath it is marked `[not established]` — measured on Belfast's street-tree
+        #   register, where the door had already said in its own words that it could not establish
+        #   whether the instrument reaches those records. A reader takes the heading and goes.
+        #   The `law` bucket holds `applies` True or None only (False sorts to `elsewhere`), so
+        #   these three cases are the whole space.
+        _reaches = {d.get("applies") is True for _n, _k in listed for d in _k["law"]}
+        listed_head = ("LISTED UNDER A LAW IN FORCE HERE" if _reaches == {True} else
+                       "LISTED BY A LAW — BUT WHERE IT IS IN FORCE WAS NOT ESTABLISHED"
+                       if _reaches == {False} else
+                       "LISTED BY A LAW WE HOLD — EACH LINE SAYS WHETHER IT REACHES YOU")
+        for bucket, head in ((listed, listed_head),
                              (noted, "NAMED, BUT NOT BY A LAW IN FORCE HERE")):
             if not bucket:
                 continue

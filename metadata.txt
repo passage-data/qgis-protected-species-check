@@ -5,7 +5,7 @@ qgisMaximumVersion=4.99
 supportsQt6=True
 description=Which species in your layer are legally protected — under which law, and which edition. Canada and the global conventions.
 about=Screens the scientific names in any vector layer or table against the conservation registers that decide, and writes the verdict back as attribute columns. 14 laws in force — the federal Species at Risk Act Schedule 1 and the Migratory Birds Convention Act, Quebec's threatened and vulnerable species regulations for fauna and flora, and the Acts of Ontario, New Brunswick, Manitoba, Alberta, Nova Scotia, British Columbia, Newfoundland and Labrador, Saskatchewan, the Northwest Territories and Yukon — with the CITES and CMS Appendices beside them as conventions, never as another jurisdiction's Act — with the IUCN Red List, COSEWIC and the BC Conservation Data Centre beside them, shown as assessments and never as law. Every answer names the instrument and the edition it cites. Where the layer has coordinates, only the laws in force there are marked as applying; where it has none, the plugin says the jurisdiction was not established rather than implying every register applies. It also flags the species whose COSEWIC assessment is not the status Schedule 1 carries, which is the most common way a report quotes the wrong status. Names are resolved against the GBIF backbone first. Requires an internet connection; the screening runs on the Passage Data service and no account is needed. Every screening states its own coverage: it ends with the registers it was actually checked against, and names the jurisdictions in your file that no register we hold reaches — an absent instrument is never reported as an absent listing.
-version=0.1.6
+version=0.1.7
 author=Passage Data
 email=hello@passage-data.com
 
@@ -20,7 +20,30 @@ deprecated=False
 
 tags=species,protected species,endangered,threatened,species at risk,conservation status,red list,IUCN,COSEWIC,SARA,biodiversity,ecology,taxonomy,GBIF,Canada,Quebec,environmental assessment,wildlife
 
-changelog=0.1.6
+changelog=0.1.7
+    ⛔⛔ A HEADING MAY NOT ASSERT WHAT THE ROWS UNDER IT DENY, AND THIS ONE DID. Screening
+    Belfast's street-tree register — 37,557 real features with no coordinates — the panel printed
+    "LISTED UNDER A LAW IN FORCE HERE" above rows every one of which was marked
+    "[not established]", under a sentence from the service saying it could not establish whether
+    the instrument reaches those records. 0.1.4 called that section "LISTED", which claimed
+    nothing; making it specific in 0.1.5 made it a claim the rows refuse. The heading now follows
+    its rows, in three forms, and a bar holds it to them.
+    ⛔⛔ A FILTER ON THE LAYER WAS INVISIBLE. QGIS honours a subset string in `getFeatures()`,
+    so a filtered layer was screened in part and the answer read as though it covered the file.
+    Worse on the empty path: the window blamed the FIELD — "choose the field that holds one
+    scientific name" — for a layer whose field was right and whose rows a filter was hiding. The
+    filter is now named, on both paths, with the count this run actually read.
+    ⛔ THE COLUMN GUESS RECOMMENDED IDENTIFIERS. Swept across all 730 layers of our corpus, seven
+    of 120 recommendations pointed at an id: `TaxonID` on four (the hint `taxon` cannot tell an
+    identifier from a name) and `taxonid_left`, holding 100/130/150, on two more. An identifier is
+    now rejected on its NAME, and a column of numbers on its VALUES — two rules, because neither
+    covers the other. On those last two layers the guess now finds `taxon_name_left` instead.
+    ⚠ And the check that reads a column now runs only after the free one that reads its name:
+    a layer of thirty columns and no name among them was opening all thirty. The corpus sweep
+    went from 1,686 s of CPU, unfinished, to 52 s.
+    ★ Screening the same layer twice is correct — the cells are replaced, no seventh column
+    appears, the date moves — and is now barred, which it never was.
+    0.1.6
     ⛔ A SENTENCE ON THIS PAGE WAS FALSE, AND THIS PAGE IS PUBLISHED VERBATIM. It read
     "Coverage is Canada plus the global conventions; a layer outside Canada gets the conventions
     and the Red List only" — measured against the live service, a layer in the United Kingdom

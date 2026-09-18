@@ -536,6 +536,68 @@ def main():
         g7 == "Scientific name", g7)
     bar("⛔ MUST-FAIL: not “Common name”, and not “OBJECTID” — the two ways to be silently wrong "
         "on this file", g7 not in ("Common name", "OBJECTID"), g7)
+    # ═════════════════════════════════════════════════════════════════════════════════════
+    # ⛔⛔ AN IDENTIFIER IS NOT A NAME — SWEPT ACROSS ALL 730 CORPUS LAYERS
+    # ═════════════════════════════════════════════════════════════════════════════════════
+    # Of the 120 layers where a name column was recommended, seven recommendations were wrong and
+    # both shapes were identifiers: `TaxonID` on four layers (the hint `taxon` matches an id as
+    # happily as a name) and `taxonid_left` on two more, holding `100, 130, 150, 160…`.
+    # ⚠ TWO RULES, BECAUSE NEITHER COVERS THE OTHER. The first reads the NAME, which works on an
+    #   empty column; the second reads the VALUES, which works when the name gives nothing away.
+    bar("⛔⛔ `TaxonID` is rejected on its NAME — recommended on four corpus layers, and the "
+        "hint `taxon` cannot tell an identifier from a name",
+        client.guess_name_field(["OBJECTID", "TaxonID", "Notes"])[0] is None,
+        client.guess_name_field(["OBJECTID", "TaxonID", "Notes"])[0])
+    _JOIN = {"taxonid_left": ["100", "130", "150", "160", "180", "200"], "label": ["a", "b"]}
+    bar("⛔⛔ `taxonid_left` is rejected on its VALUES — its NAME gives nothing away, and it "
+        "holds the join keys `100, 130, 150…`",
+        client.guess_name_field(list(_JOIN), lambda f: _JOIN.get(f, []))[0] is None,
+        client.guess_name_field(list(_JOIN), lambda f: _JOIN.get(f, []))[0])
+    bar("⚠ …and WITHOUT a sample it is still offered — the value rule decides nothing when the "
+        "caller holds no layer, rather than guessing in the dark",
+        client.guess_name_field(list(_JOIN))[0] == "taxonid_left",
+        client.guess_name_field(list(_JOIN))[0])
+    # ⛔ MUST-PASS NULL — the control that proves this rejects identifiers and not name columns.
+    _REAL = {"scientificName": ["Myotis lucifugus", "Asio flammeus"], "species_code": ["1", "2"]}
+    bar("* MUST-PASS NULL: a real name column survives both rules, with a number column beside it",
+        client.guess_name_field(list(_REAL), lambda f: _REAL.get(f, []))[0] == "scientificName",
+        client.guess_name_field(list(_REAL), lambda f: _REAL.get(f, []))[0])
+    bar("⛔ MUST-FAIL: an EMPTY column is not thereby an identifier — nobody filling a column "
+        "says nothing about what belongs in it, and the panel already reports an empty field",
+        client.guess_name_field(["scientificName"], lambda f: [])[0] == "scientificName")
+    bar("★ the frog census still resolves with its values read — the layer the installed plugin "
+        "screened end to end",
+        client.guess_name_field(
+            ["OBJECTID", "Latitude", "Scientific name", "Common name"],
+            lambda f: ["Crinia signifera"] if f == "Scientific name" else [])[0]
+        == "Scientific name")
+    # ââ AND THE COST IS BARRED, NOT ONLY THE ANSWER. `values_for` reads the column, which on
+    #   a sparse one is a full scan of the layer; it ran on EVERY column before anything asked
+    #   whether the column's NAME was even plausible. A layer of thirty columns and no name among
+    #   them paid thirty scans to learn nothing â measured on the corpus sweep, at 1,600 s of CPU.
+    _opened = []
+
+    def _counting(field):
+        _opened.append(field)
+        return ["1", "2", "3"]
+
+    _WIDE = ["OBJECTID", "geom", "notes", "created_by", "updated_at", "status", "region",
+             "district", "block", "section", "area_m2", "length_m", "source", "vintage"]
+    _g, _ = client.guess_name_field(_WIDE, _counting)
+    bar("⛔⛔ a layer with NO name-like column opens NO column — the free test (does this name "
+        "look like a name?) runs before the one that reads the data",
+        _g is None and _opened == [], "opened %d of %d column(s)" % (len(_opened), len(_WIDE)))
+    _opened2 = []
+
+    def _counting2(field):
+        _opened2.append(field)
+        return ["Myotis lucifugus"]
+
+    _g2, _ = client.guess_name_field(_WIDE + ["scientificName"], _counting2)
+    bar("* MUST-PASS NULL: …and when a plausible column IS there it is opened, exactly once — a "
+        "count of zero everywhere would mean the values are never read at all",
+        _g2 == "scientificName" and _opened2 == ["scientificName"],
+        "opened %r" % (_opened2,))
     g6, _s6 = client.guess_name_field(DUBLIN)
     bar("⛔⛔ MUST-FAIL: a HINT may match a column name, never a sentence — this Irish "
         "employment table contains “scientific and technical activities” and would have been "
