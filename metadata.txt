@@ -3,9 +3,9 @@ name=Protected Species Check
 qgisMinimumVersion=3.22
 qgisMaximumVersion=4.99
 supportsQt6=True
-description=Which species in your layer are legally protected — under which law, and which edition. Canada and the global conventions.
+description=Which species in your layer are legally protected — under which law, and which edition. Canada, England, Wales and Scotland, and the global conventions.
 about=Screens the scientific names in any vector layer or table against the conservation registers that decide, and writes the verdict back as attribute columns. 14 laws in force — the federal Species at Risk Act Schedule 1 and the Migratory Birds Convention Act, Quebec's threatened and vulnerable species regulations for fauna and flora, and the Acts of Ontario, New Brunswick, Manitoba, Alberta, Nova Scotia, British Columbia, Newfoundland and Labrador, Saskatchewan, the Northwest Territories and Yukon — with the CITES and CMS Appendices beside them as conventions, never as another jurisdiction's Act — with the IUCN Red List, COSEWIC and the BC Conservation Data Centre beside them, shown as assessments and never as law. Every answer names the instrument and the edition it cites. Where the layer has coordinates, only the laws in force there are marked as applying; where it has none, the plugin says the jurisdiction was not established rather than implying every register applies. It also flags the species whose COSEWIC assessment is not the status Schedule 1 carries, which is the most common way a report quotes the wrong status. Names are resolved against the GBIF backbone first. Requires an internet connection; the screening runs on the Passage Data service and no account is needed. Every screening states its own coverage: it ends with the registers it was actually checked against, and names the jurisdictions in your file that no register we hold reaches — an absent instrument is never reported as an absent listing.
-version=0.1.8
+version=0.1.9
 author=Passage Data
 email=hello@passage-data.com
 
@@ -20,7 +20,30 @@ deprecated=False
 
 tags=species,protected species,endangered,threatened,species at risk,conservation status,red list,IUCN,COSEWIC,SARA,biodiversity,ecology,taxonomy,GBIF,Canada,Quebec,environmental assessment,wildlife
 
-changelog=0.1.8
+changelog=0.1.9
+    ⛔⛔ A PLACE YOU CHOSE WAS CREDITED TO A LAYER THAT HAS NONE. Screening Belfast's
+    street-tree register — 37,557 rows and no geometry — with Northern Ireland chosen in the
+    place list, the panel said "189 of them carry no usable geometry, so their place comes from
+    the rest of the layer". There is no rest of that layer: the place came from the list, and a
+    place chosen there answers for every name in the run. 0.1.8 corrected this sentence for a
+    layer with NO place chosen and left it standing for the case the United Kingdom entries
+    were added for. It now names the place you chose.
+    ⛔⛔ ACTS THAT WERE NOT ASKED WERE NOT SAID. Choosing « Canada » answers with the federal
+    Acts, and on every provincial listing the service returns the sentence "12 act(s) we hold
+    for CA were NOT asked … name the province and they are screened". The panel received it
+    and printed it nowhere, so the only trace was a column reading "not established". It is
+    printed under the headline now, once. (0.1.8's notes counted eleven provincial and
+    territorial Acts; the service holds twelve — Québec has two.)
+    Both are barred on the Belfast register itself, each beside a control showing the bar
+    cannot pass by printing its sentence always.
+    ★ A UNITED KINGDOM LAYER IS NOW PLACED IN ITS NATION FROM ITS COORDINATES. The service could
+    place a UK coordinate only in the United Kingdom, so York's tree preservation orders, read from
+    the layer's coordinates as this window recommends, came back with all eight UK instruments
+    "not asked". It now answers under England's, Wales's or Scotland's own schedules — a great
+    crested newt and an otter at York Minster read `yes` — and for Northern Ireland it says we hold
+    no register there. That change is in the service, so every version of this plugin gets it; the
+    page now names the eight UK instruments beside Canada's fourteen.
+    0.1.8
     ⛔⛔ THE SEVENTH AND EIGHTH TIMES A LAW, A CONVENTION AND AN ASSESSMENT WERE TOLD APART BY A
     SENTENCE INSTEAD OF BY THE ROWS — and both were LABELS, which is why the census that ended the
     first six could not see them: it reads code, and a heading is not code. `pd_law` was described,

@@ -1090,6 +1090,28 @@ def main():
                    len([r for r in _brows
                         if r[0] not in {n.get("value")
                                         for n in (d_bel._answer or {}).get("names") or ()}])))
+            # ★★★ 0.1.9 — WHERE THE PLACE CAME FROM, AND WHAT WAS NOT ASKED, ON THIS SAME FILE
+            said_nir = drive(d_bel, app, bel, "SPECIES", place="GB-NIR")
+            _nir_top = "\n".join(said_nir.splitlines()[:4])
+            bar("⛔⛔ with Northern Ireland CHOSEN, no line says the place « comes from the rest of "
+                "the layer » — this layer has no geometry at all, and 0.1.8 said exactly that "
+                "over it; the place came from the dropdown, and the panel names it",
+                "rest of the layer" not in said_nir and "the place you chose, Northern Ireland"
+                in _nir_top, [l[:90] for l in said_nir.splitlines() if "geometry" in l][:1])
+            bar("★ MUST-PASS CONTROL: with NOTHING chosen the same file still leads with the NONE "
+                "sentence — the fix did not delete the placeless warning",
+                "NONE of the 189 names" in said_b, _bhead3[:90])
+            said_ca = drive(d_bel, app, bel, "SPECIES", place="CA")
+            bar("⛔⛔ with only « Canada » chosen, the door's own sentence — the provincial acts "
+                "were NOT asked — reaches the panel; 0.1.8 received it on every provincial row "
+                "and printed it nowhere",
+                "NOT asked" in said_ca,
+                [l[:100] for l in said_ca.splitlines() if "NOT asked" in l][:1] or "ABSENT")
+            said_on = drive(d_bel, app, bel, "SPECIES", place="CA-ON")
+            bar("★ MUST-PASS CONTROL: with a province chosen nothing went unasked, and the panel "
+                "says nothing of the kind — the line reads the rows, it is not printed always",
+                "NOT asked" not in said_on,
+                [l[:100] for l in said_on.splitlines() if "NOT asked" in l][:1] or "none, correct")
         # ⛔ THIS SECTION RUNS AFTER THE CORPUS BLOCK'S OWN TEARDOWN, so it tears itself down
         #   the same way. Without it the layer and the dialog were destroyed at interpreter
         #   shutdown — after `exitQgis()` has taken away the provider registry their destructors

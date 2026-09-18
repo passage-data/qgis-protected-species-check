@@ -855,6 +855,11 @@ def main():
         bar("⛔⛔ the README's LAW COUNT equals the registers we hold — it said « Ten » while "
             "the repo held fourteen, and counted the two conventions among them",
             _want in _text, "%s ← derived %d" % (_want, _n_ca))
+        _n_gb = ledger.laws_in_force("GB")[0]
+        _want_gb = "**%s United Kingdom instruments**" % _WORDS.get(_n_gb, _n_gb)
+        bar("⛔ …and its UNITED KINGDOM count equals the UK registers we hold — the derivation "
+            "could not count them at all until it had a scope for GB",
+            _want_gb in _text, "%s ← derived %d" % (_want_gb, _n_gb))
         bar("⛔ MUST-FAIL CONTROL: the count the page used to carry is NOT still on it",
             "**Ten laws in force**" not in _text and "259 of 860" not in _text)
         bar("⛔ …and the conventions are named as conventions on that page, not as laws",

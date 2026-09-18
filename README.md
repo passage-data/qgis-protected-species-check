@@ -13,6 +13,12 @@ back as six attribute columns.
 and the flora regulations); and the Acts of Ontario, New Brunswick, Manitoba, Alberta, Nova Scotia,
 British Columbia, Newfoundland and Labrador, Saskatchewan, the Northwest Territories and Yukon.
 
+**Eight United Kingdom instruments** — the *Wildlife and Countryside Act 1981* Schedules 1, 5 (the
+England and Wales text and Scotland's own) and 8; the *Conservation of Habitats and Species
+Regulations 2017* Schedules 2 and 5; and the *Conservation (Natural Habitats, &c.) Regulations 1994*
+Schedules 2 and 4, which apply in Scotland. We hold no register for Northern Ireland, and an answer
+about records there says so.
+
 **The CITES and CMS Appendices, as conventions** — in force wherever you are, and never reported as
 another jurisdiction's Act.
 

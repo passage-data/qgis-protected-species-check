@@ -305,11 +305,19 @@ class ScreenDialog(QDialog):
             #   was no layer place for them to come from. The sentence read as reassurance two
             #   lines above the one that says the jurisdiction was never established.
             #   ALL of them and SOME of them are different findings and they had one sentence.
+            # ⛔⛔ A PLACE THE PERSON CHOSE IS WHERE THE PLACE CAME FROM. The choice travels as a
+            #   `stateProvince` constant on every row, and the door reads a column before it reads
+            #   a coordinate — so once a place is chosen it answers for every name, placed or not,
+            #   and « the rest of the layer » is a source that played no part.
+            chosen = self.place_box.currentData()
             self._caveats.append(
+                ("⚠ %d of them carry no usable geometry — this run answers every name about "
+                 "the place you chose, %s, not about its features."
+                 % (n_no_place, self.place_box.currentText())) if chosen else
                 ("⛔ NONE of the %d name%s in this layer carries a usable position, and no "
                  "province was named — so nothing in this run states where these records are."
                  % (n_no_place, "" if n_no_place == 1 else "s"))
-                if n_no_place == len(rows) and not self.place_box.currentData() else
+                if n_no_place == len(rows) else
                 ("⚠ %d of them carry no usable geometry, so their place comes from the rest of "
                  "the layer, not from the feature." % n_no_place))
         self.out.setPlainText("\n".join(lead + self._caveats) + "\n\nChecking…")
@@ -396,6 +404,19 @@ class ScreenDialog(QDialog):
             lines += ["⛔ " + (answer.get("place_says") or
                       "This layer states no place, so we did not establish which of these "
                       "instruments are in force where your records are."), ""]
+        # ⛔⛔ AN ACT WE HOLD AND DID NOT ASK IS SAID HERE, ONCE. The door writes that sentence on
+        #   every designation it could not gate (a file placed in a country and no subdivision),
+        #   and the cells can only read « not established » — the reason has to reach the page,
+        #   because a limit that eats information changes what the caller sees. An unplaced
+        #   file's sentence is `place_says`, printed above, so it is not repeated.
+        if answer.get("place_established") is not False:
+            unasked = []
+            for n in answer.get("names") or ():
+                for d in n.get("designations") or ():
+                    s = d.get("applies_says") if d.get("applies") is None else None
+                    if s and s not in unasked and s != answer.get("place_says"):
+                        unasked.append(s)
+            lines += ["⛔ " + s for s in unasked] + ([""] if unasked else [])
         if answer.get("n_conflict"):
             lines += ["⚠ " + (answer.get("conflict_says") or ""), ""]
 
