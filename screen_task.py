@@ -38,8 +38,14 @@ def _text(raw):
     return str(raw).strip()
 
 
+class NameRows(list):
+    """[(name, [(lat, lon), …])], one per distinct name, and how the positions were gridded:
+    `grid` in degrees, `n_fine` the distinct ~1 km cells the layer covers, `n_cells` those sent."""
+    grid, n_fine, n_cells = 0.0, 0, 0
+
+
 def name_values(layer, field):
-    """→ ([(name, lat, lon)], n_features, n_without_place, n_distinct_if_truncated, n_blank)
+    """→ (NameRows, n_features, n_without_place, n_distinct_if_truncated, n_blank)
 
     ⛔⛔ `n_blank` IS THE FEATURES THIS FUNCTION THREW AWAY, AND NOBODY USED TO BE TOLD. A feature
       whose name cell is empty cannot be screened — that is correct — but it left no trace at all:
@@ -48,13 +54,14 @@ def name_values(layer, field):
       2026-09-17). A screening that silently covers 2% of a layer and reads like a verdict is the
       shape of every defect this plugin exists to prevent.
 
-    ⛔ ONE ROW PER DISTINCT NAME, carrying that name's own mean position. Sending every feature
-      would send the same name hundreds of times and put the whole layer's coordinates on the
-      wire for a question that is about names.
+    ⛔ ONE ROW PER DISTINCT NAME, carrying the distinct cells its features fall in (`client.GRID`)
+      — never their average, which is a point no record sits on. Sending every feature would
+      put the whole layer's coordinates on the wire for a question that is about names and
+      places; a cell per place is what the service reads anyway.
     """
     idx = layer.fields().indexOf(field)
     if idx < 0:
-        return [], 0, 0, False, 0
+        return NameRows(), 0, 0, False, 0
     to_wgs = None
     src = layer.crs()
     # ⛔ SAME FALSE PREMISE AS `dialog.has_geom` WAS: `geometryType()` returns `GeometryType.Null`
@@ -71,7 +78,7 @@ def name_values(layer, field):
             n_blank += 1                                             # counted, never silent
             continue
         n_feat += 1
-        slot = acc.setdefault(value, [0.0, 0.0, 0])
+        cells = acc.setdefault(value, set())
         geom = f.geometry()
         if geom is None or geom.isEmpty():
             continue
@@ -80,26 +87,35 @@ def name_values(layer, field):
             if to_wgs is not None:
                 pt = to_wgs.transform(QgsPointXY(pt))
             if -90.0 <= pt.y() <= 90.0 and -180.0 <= pt.x() <= 180.0:
-                slot[0] += pt.y()
-                slot[1] += pt.x()
-                slot[2] += 1
+                cells.add((round(pt.y() / client.GRID), round(pt.x() / client.GRID)))
         except Exception:                                            # noqa: BLE001
             pass                                                     # a bad geometry is not a name
-    rows, n_no_place = [], 0
-    for value, (sy, sx, n) in acc.items():
-        if n:
-            rows.append((value, sy / n, sx / n))
-        else:
-            rows.append((value, None, None))
-            n_no_place += 1
-    rows.sort(key=lambda r: r[0].lower())
+    names = sorted(acc, key=str.lower)
     # ⛔⛔ A FLAG THAT ATE THE NUMBER. This was `len(rows) > MAX_NAMES`, a bool — so the panel
     #   could say the cap was hit and NOT how far past it, and a person could not tell whether one
     #   name was dropped or fourteen hundred. §4: a limit that eats information has to change what
     #   the caller sees, and "some were dropped" is the shape of exactly that. It is the TOTAL
     #   distinct count when the cap bit and 0 otherwise, so `if truncated:` reads the same.
-    truncated = len(rows) if len(rows) > client.MAX_NAMES else 0
-    return rows[:client.MAX_NAMES], n_feat, n_no_place, truncated, n_blank
+    truncated = len(names) if len(names) > client.MAX_NAMES else 0
+    names = names[:client.MAX_NAMES]
+    # ⛔ PAST THE SERVICE'S CELL CAP, CELLS ARE MERGED — ONE SHARED REPRESENTATIVE PER MERGED CELL,
+    #   so the file stays inside what the service places, and every name in a merged cell is asked
+    #   about the same real ~1 km cell rather than about a coarse cell's centre, which can be sea.
+    fine = sorted({c for v in names for c in acc[v]})
+    for k in client.COARSEN:
+        rep = {}
+        for c in fine:
+            rep.setdefault((c[0] // k, c[1] // k), c)
+        if len(rep) <= client.MAX_CELLS:
+            break
+    rows, n_no_place = NameRows(), 0
+    rows.grid, rows.n_fine, rows.n_cells = k * client.GRID, len(fine), len(rep)
+    for v in names:
+        pts = sorted({rep[(c[0] // k, c[1] // k)] for c in acc[v]})
+        if not pts:
+            n_no_place += 1
+        rows.append((v, [(a * client.GRID, b * client.GRID) for a, b in pts]))
+    return rows, n_feat, n_no_place, truncated, n_blank
 
 
 def write_back(layer, field, answer, checked_on):

@@ -5,7 +5,7 @@ qgisMaximumVersion=4.99
 supportsQt6=True
 description=Which species in your layer are legally protected — under which law, and which edition. Canada, England, Wales and Scotland, and the global conventions.
 about=Screens the scientific names in any vector layer or table against the conservation registers that decide, and writes the verdict back as attribute columns. 14 laws in force in Canada — the federal Species at Risk Act Schedule 1 and the Migratory Birds Convention Act, Quebec's threatened and vulnerable species regulations for fauna and flora, and the Acts of Ontario, New Brunswick, Manitoba, Alberta, Nova Scotia, British Columbia, Newfoundland and Labrador, Saskatchewan, the Northwest Territories and Yukon — and 8 in the United Kingdom: the schedules of the Wildlife and Countryside Act, the Conservation of Habitats and Species Regulations for England and Wales, and the Conservation (Natural Habitats, &c.) Regulations for Scotland; we hold none for Northern Ireland, and an answer about records there says so — with the CITES and CMS Appendices beside them as conventions, never as another jurisdiction's Act — with the IUCN Red List, COSEWIC and the BC Conservation Data Centre beside them, shown as assessments and never as law. Every answer names the instrument and the edition it cites. Where the layer has coordinates, only the laws in force there are marked as applying; where it has none, the plugin says the jurisdiction was not established rather than implying every register applies. It also flags the species whose COSEWIC assessment is not the status Schedule 1 carries, which is the most common way a report quotes the wrong status. Names are resolved against the GBIF backbone first. Requires an internet connection; the screening runs on the Passage Data service and no account is needed. Every screening states its own coverage: it ends with the registers it was actually checked against, and names the jurisdictions in your file that no register we hold reaches — an absent instrument is never reported as an absent listing.
-version=0.1.10
+version=0.1.11
 author=Passage Data
 email=hello@passage-data.com
 
@@ -20,7 +20,25 @@ deprecated=False
 
 tags=species,protected species,endangered,threatened,species at risk,conservation status,red list,IUCN,COSEWIC,SARA,biodiversity,ecology,taxonomy,GBIF,Canada,Quebec,environmental assessment,wildlife,United Kingdom,England,Scotland,Wales,Wildlife and Countryside Act,Schedule 5,Habitats Regulations,UK
 
-changelog=0.1.10
+changelog=0.1.11
+    ⛔⛔ A NAME WAS PLACED AT THE AVERAGE OF ITS RECORDS, AND AN AVERAGE IS A POINT NO RECORD SITS
+    ON. Screening seven of GBIF's own Canadian downloads as one layer — 2,100 records, 119 names —
+    the 61 records of Myotis lucifugus, most of them in Ontario and Alberta, went up as ONE
+    position, their average, which is in Minnesota; the little brown bat, Endangered on SARA
+    Schedule 1, read `pd_applies: not covered (no register we hold reaches US)`. 16 of the 119
+    names averaged to the United States or the sea, and 2 more to a province none of their records
+    are in. Each name now goes up once for every ~1 km cell its features fall in — the grid the
+    service places on — and is answered about every place those cells land. On the same layer 21
+    names read `yes` where 17 did: the little brown, hoary and silver-haired bats, and the bigmouth
+    buffalo as `yes (qualified)`. A layer inside one place is answered as before: York's 3,550
+    trees, no verdict changed.
+    ⛔ WHAT LEAVES YOUR MACHINE CHANGES WITH IT: each name and the ~1 km cells its features fall in
+    (rounded to 0.01°), where it was one averaged position per name. York's register goes up as
+    1,061 lines instead of 104. Past 5,000 distinct cells — the most the service places for one
+    file — cells are merged onto a coarser grid, and the panel says so.
+    Barred on that GBIF download itself, beside a control that sends the old average and prints
+    what it reads, so the bar cannot pass with the fix absent.
+    0.1.10
     The page that describes this plugin now names the United Kingdom beside Canada: 8
     instruments in force in England, Wales and Scotland, and none held for Northern Ireland.
     Only this page and the version number changed; the screening is the one 0.1.9 runs.

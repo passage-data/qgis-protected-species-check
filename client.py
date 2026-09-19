@@ -25,7 +25,7 @@ TIMEOUT_S = 300
 #   looks exactly like nobody using the plugin. Barred in `client_selftest` against that file.
 # ⛔ NOTHING ABOUT THE MACHINE RIDES HERE. `urllib` would otherwise send `Python-urllib/3.x`; a
 #   token of ours replaces it rather than appending to it, and no QGIS build, OS or host is added.
-USER_AGENT = "passage-data-qgis-protected-species-check/0.1.10"
+USER_AGENT = "passage-data-qgis-protected-species-check/0.1.11"
 
 # ⛔⛔ WHAT THE BARS SEND, SO THAT THE PRODUCT'S NUMBER IS THE PRODUCT'S. Both suites screen
 #   against the LIVE door — that is the point of them — and until 2026-09-17 they did it under
@@ -35,7 +35,7 @@ USER_AGENT = "passage-data-qgis-protected-species-check/0.1.10"
 # ⛔ IT IS NOT A PREFIX OF THE PRODUCT TOKEN, AND THE PRODUCT TOKEN IS NOT A PREFIX OF IT —
 #   the door prefix-matches, so either would put the suites straight back into the product's
 #   count. Barred in `client_selftest`, against `funnel_meter` itself.
-SELFTEST_USER_AGENT = "passage-data-qgis-selftest/0.1.10"
+SELFTEST_USER_AGENT = "passage-data-qgis-selftest/0.1.11"
 
 # ⛔⛔ MEASURED, NOT GUESSED (2026-09-17, live door): 100 / 400 / 900 / 2,000 / 5,000 distinct
 #   names all returned whole, `not_screened: 0`, the slowest pass 34.6 s. The first cut of this
@@ -45,6 +45,19 @@ SELFTEST_USER_AGENT = "passage-data-qgis-selftest/0.1.10"
 #   door can do is a refusal we invented.
 #   The timeout carries ~9x headroom over the slowest measured pass, for a cold container.
 MAX_NAMES = 5000
+
+# ⛔⛔ A NAME IS PLACED WHERE ITS FEATURES ARE, NEVER AT THEIR AVERAGE. Each name goes on the wire
+#   once per distinct cell its features fall in, and the service answers it about every place
+#   those cells land. An average is a point no record sits on: measured on a real GBIF download,
+#   16 of 119 Canadian names averaged to the United States or the sea, and Myotis lucifugus —
+#   Endangered on SARA Schedule 1 — read `no`.
+#   GRID is the service's own placement grid (`place_of_points.GRID`), so rounding to it loses
+#   nothing the service would have used. MAX_CELLS is the most distinct cells it places for one
+#   file (`place_of_points.MAX_CELLS`); past it the cells are merged on the first of COARSEN (fine
+#   cells per side) that fits, and the panel says so.
+GRID = 0.01
+MAX_CELLS = 5000
+COARSEN = (1, 2, 5, 10, 20, 50, 100)
 
 # ⛔ THREE TRIES, NOT MORE. Two cover a cold start; a third covers a container dying mid-scale.
 #   Past that the service is down, and a plugin that hangs for a minute pretending otherwise is
@@ -87,19 +100,26 @@ def csv_name(name):
 
 
 def build_csv(rows):
-    """→ the bytes we send. `rows` is [(name, lat, lon)] with lat/lon None when unknown.
+    """→ the bytes we send. `rows` is [(name, [(lat, lon), …])] — the list empty when the name has
+    no usable position — or [(name, lat, lon)] with lat/lon None when unknown.
 
     ⛔ THE COORDINATES ARE WHY THE JURISDICTION CAN BE ESTABLISHED AT ALL. The door reads the
       place from the file's own coordinates; without them every register comes back
       "not established" and the answer is about the taxon, not about where you are.
+    ⛔ ONE LINE PER POSITION, SO A NAME RECORDED IN TWO PROVINCES IS ASKED ABOUT BOTH.
     """
     head = "scientificName,decimalLatitude,decimalLongitude\n"
     body = []
-    for name, lat, lon in rows:
-        safe = csv_name(name)
-        if lat is None or lon is None:
-            body.append("%s,,\n" % safe)
+    for row in rows:
+        if len(row) == 2:
+            name, points = row
         else:
+            name, lat, lon = row
+            points = [] if lat is None or lon is None else [(lat, lon)]
+        safe = csv_name(name)
+        if not points:
+            body.append("%s,,\n" % safe)
+        for lat, lon in points:
             body.append("%s,%.6f,%.6f\n" % (safe, lat, lon))
     return (head + "".join(body)).encode("utf-8")
 

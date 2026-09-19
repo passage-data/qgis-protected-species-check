@@ -140,6 +140,14 @@ def main():
     commaed = client.build_csv([("Genus, species", 1.0, 2.0)]).decode().splitlines()[1]
     bar("⛔ a comma inside a name cannot open a fourth column",
         commaed.count(",") == 2 and commaed.startswith("Genus"), commaed)
+    many = client.build_csv([("Myotis lucifugus", [(45.5, -73.57), (53.54, -113.49)]),
+                             ("No place", [])]).decode().splitlines()
+    bar("⛔⛔ a name in two places goes up on TWO lines, one per place, so the service is asked "
+        "about both — the average of Montréal and Edmonton is in neither",
+        many[1:] == ["Myotis lucifugus,45.500000,-73.570000",
+                     "Myotis lucifugus,53.540000,-113.490000", "No place,,"], many)
+    bar("the first grid tried is the fine one — merging is only ever what the cell cap forces",
+        client.COARSEN[0] == 1, list(client.COARSEN))
 
     # ════════════════════════════════════════════════════════════════════════════════════════
     # ★★★★ 189 WENT UP AND 188 CAME BACK — THE OFF-BY-ONE, AND THE RULE THAT NAMES IT
@@ -828,6 +836,13 @@ def main():
         bar("…and the tag it returns is a counter the closed vocabulary already holds",
             (funnel_meter.CLIENT_PREFIX
              + funnel_meter.client_of(client.USER_AGENT)) in funnel_meter.COUNTERS)
+        import place_of_points                                       # noqa: E402
+        bar("⛔⛔ GRID and MAX_CELLS are the door's own `place_of_points` values — a coarser grid "
+            "here moves records across borders the door could have told apart, a larger cap "
+            "sends cells it never reads",
+            (client.GRID, client.MAX_CELLS) == (place_of_points.GRID, place_of_points.MAX_CELLS),
+            "plugin %s · door %s" % ((client.GRID, client.MAX_CELLS),
+                                     (place_of_points.GRID, place_of_points.MAX_CELLS)))
     else:                                                            # pragma: no cover
         print("  ⚠    the door's funnel_meter.py is not beside this checkout — the token bar was "
               "NOT run, and that is an absence, not a pass")

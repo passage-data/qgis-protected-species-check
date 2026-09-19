@@ -204,7 +204,7 @@ def main():
     print("-- the layer is read, and its coordinates land where they should")
     lyr = build_layer()
     rows, n_feat, n_no_place, trunc, n_blank = screen_task.name_values(lyr, "scientificName")
-    got = {nm: (la, lo) for nm, la, lo in rows}
+    got = {nm: pts[0] if len(pts) == 1 else pts for nm, pts in rows}
     bar("every feature's name is read", n_feat == len(PTS), n_feat)
     bar("names are DISTINCT on the wire, not one row per feature",
         len(rows) == len({p[0] for p in PTS}), len(rows))
@@ -215,8 +215,9 @@ def main():
         if la is None:
             continue
         g = got.get(nm)
-        bar("★ %s reprojects EPSG:32618 → WGS 84 within 100 m" % nm,
-            g is not None and abs(g[0] - la) < 0.001 and abs(g[1] - lo) < 0.001, g)
+        bar("★ %s reprojects EPSG:32618 → WGS 84 into its own ~1 km cell" % nm,
+            isinstance(g, tuple) and abs(g[0] - la) <= client.GRID / 2 + 1e-9
+            and abs(g[1] - lo) <= client.GRID / 2 + 1e-9, g)
     bar("⛔ MUST-FAIL: a field that holds no names yields nothing, rather than a wrong screen",
         screen_task.name_values(lyr, "observer_note")[0] != [] or True)
 
@@ -382,7 +383,8 @@ def main():
 
             rows, n_feat, n_no_place, _t, _b = screen_task.name_values(real, "NOM_SCIEN")
             bar("★ a projected Quebec CRS (32198) reprojects into Gaspesie, not into the ocean",
-                len(rows) == 1 and 48.0 < rows[0][1] < 50.0 and -67.5 < rows[0][2] < -64.5,
+                len(rows) == 1 and bool(rows[0][1])
+                and all(48.0 < la < 50.0 and -67.5 < lo < -64.5 for la, lo in rows[0][1]),
                 rows[0] if rows else None)
 
             if live:
@@ -589,7 +591,7 @@ def main():
             "name the province" in d3.note.text(), d3.note.text()[-104:])
         _rows, _nf, _nop, _tr, _nb = screen_task.name_values(tbl, "scientificName")
         bar("⛔ every name from a table goes up WITHOUT a place, rather than with a made-up one",
-            _nop == len(_rows) and all(r[1] is None for r in _rows), "%d/%d" % (_nop, len(_rows)))
+            _nop == len(_rows) and all(not r[1] for r in _rows), "%d/%d" % (_nop, len(_rows)))
         if live:
             said_t = drive(d3, app, tbl, "scientificName")
             # ⛔⛔ THE ONE THAT WOULD DO REAL DAMAGE IF IT WERE WRONG. "Not established" and "no"
@@ -1228,8 +1230,8 @@ def main():
     _rl, _nl, _nopl, _trl, _bll = screen_task.name_values(_ln6, "scientificName")
     bar("⛔ A LINE LAYER gives a usable position — the centroid of the line, in range. Every "
         "other bar here is a point or a polygon; `centroid()` on a line had never been run",
-        len(_rl) == 1 and _nopl == 0 and abs(_rl[0][1] - 45.55) < 0.01
-        and abs(_rl[0][2] + 73.55) < 0.01, _rl)
+        len(_rl) == 1 and _nopl == 0 and len(_rl[0][1]) == 1
+        and abs(_rl[0][1][0][0] - 45.55) < 0.01 and abs(_rl[0][1][0][1] + 73.55) < 0.01, _rl)
     _mp6 = QgsVectorLayer("MultiPolygon?crs=EPSG:4326", "a multipart layer", "memory")
     _mp6.dataProvider().addAttributes([QgsField("scientificName", QVariant.String, len=80)])
     _mp6.updateFields()
@@ -1241,10 +1243,9 @@ def main():
     _mp6.dataProvider().addFeatures([_mf])
     _rm, _nm, _nopm, _trm, _blm = screen_task.name_values(_mp6, "scientificName")
     bar("⛔ A MULTIPART FEATURE gives ONE position — the centroid of all its parts, which may "
-        "lie in none of them. That is the documented promise (« one representative coordinate "
-        "per name ») and it stays inside the parts' bounding box",
-        len(_rm) == 1 and _nopm == 0
-        and 45.5 <= _rm[0][1] <= 46.6 and -73.6 <= _rm[0][2] <= -72.5, _rm)
+        "lie in none of them; it stays inside the parts' bounding box",
+        len(_rm) == 1 and _nopm == 0 and len(_rm[0][1]) == 1
+        and 45.5 <= _rm[0][1][0][0] <= 46.6 and -73.6 <= _rm[0][1][0][1] <= -72.5, _rm)
 
     # ⑤ A MULTI-LAYER GEOPACKAGE
     _mg = os.path.join(tmp, "two_layers.gpkg")
@@ -1398,6 +1399,56 @@ def main():
     _big = _dbig = _bigf = _small = None                             # noqa: F841
     gc.collect()
     app.processEvents()
+
+    # ⑦ A NAME IS PLACED WHERE ITS RECORDS ARE. GBIF's own Canadian bat download: 61 records of
+    #   Myotis lucifugus in Ontario, Alberta, Québec and Nova Scotia, whose AVERAGE is in Minnesota.
+    print("\n-- a name recorded across Canada is placed where its records are, not at their average")
+    _bats = os.path.join(REPO, "reports", "corpus", "desig0904", "gbif_ca_chiroptera.json")
+    if not os.path.exists(_bats):
+        bar("⛔ the GBIF Canada bat download is present in the corpus — THIS BAR DID NOT RUN, it is "
+            "not a pass", False, _bats)
+    else:
+        import json
+        _bl = QgsVectorLayer("Point?crs=EPSG:4326", "GBIF Canada bats", "memory")
+        _bl.dataProvider().addAttributes([QgsField("scientificName", QVariant.String, len=120)])
+        _bl.updateFields()
+        _bfs, _mlr = [], []
+        for _r in json.load(io.open(_bats, encoding="utf-8")).get("results") or ():
+            if _r.get("decimalLatitude") is None or not _r.get("scientificName"):
+                continue
+            _f = QgsFeature(_bl.fields())
+            _f.setAttribute("scientificName", _r["scientificName"])
+            _f.setGeometry(QgsGeometry.fromPointXY(
+                QgsPointXY(_r["decimalLongitude"], _r["decimalLatitude"])))
+            _bfs.append(_f)
+            if _r["scientificName"].startswith("Myotis lucifugus"):
+                _mlr.append((_r["decimalLatitude"], _r["decimalLongitude"]))
+        _bl.dataProvider().addFeatures(_bfs)
+        _brows = screen_task.name_values(_bl, "scientificName")[0]
+        _ml = next(((n, p) for n, p in _brows if n.startswith("Myotis lucifugus")), (None, []))
+        _mean = (sum(p[0] for p in _mlr) / max(len(_mlr), 1), sum(p[1] for p in _mlr) / max(len(_mlr), 1))
+        _half = client.GRID / 2 + 1e-9
+        bar("★★ Myotis lucifugus goes up at the cells its %d records are in — each within half a "
+            "cell of a record — and not at their average (%.2f, %.2f)" % (len(_mlr), _mean[0], _mean[1]),
+            len(_ml[1]) > 1
+            and all(any(abs(la - a) <= _half and abs(lo - b) <= _half for a, b in _mlr)
+                    for la, lo in _ml[1])
+            and all(abs(la - _mean[0]) > 0.5 or abs(lo - _mean[1]) > 0.5 for la, lo in _ml[1]),
+            "%d cells" % len(_ml[1]))
+        if live:
+            def _applies(rows):
+                _a = client.screen(rows)
+                _c = {str(n.get("value")): client.columns_for(n, _a.get("register_cards") or [],
+                                                              "today", _a.get("coverage") or {})
+                      for n in _a.get("names") or ()}
+                return (_c.get(client.csv_name(_ml[0])) or {}).get("pd_applies")
+            _got = _applies([_ml])
+            _was = _applies([(_ml[0], _mean[0], _mean[1])])     # the control: 0.1.10's average
+            bar("⛔⛔ …and it reads `yes` — SARA Schedule 1, Endangered — where the average of the "
+                "same records reads something else; both are printed, so the bar cannot pass with "
+                "the mechanism absent", _got == "yes" and _was != "yes",
+                "cells: %r · average: %r" % (_got, _was))
+        _bl = _bfs = None                                            # noqa: F841
 
     print("\n%s" % ("ALL GREEN" if not FAILED
                     else "RED: %d\n  %s" % (len(FAILED), "\n  ".join(FAILED))))

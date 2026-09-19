@@ -298,6 +298,17 @@ class ScreenDialog(QDialog):
                 "%s NOT screened. That is one pass; split the layer and run the rest."
                 % (truncated, client.MAX_NAMES, truncated - client.MAX_NAMES,
                    "name was" if truncated - client.MAX_NAMES == 1 else "names were"))
+        if getattr(rows, "grid", 0) > client.GRID + 1e-9:
+            # ⛔ MERGED CELLS ARE A LIMIT, AND A LIMIT IS SAID: near a border, one merged cell can
+            #   hold records from both sides and is asked about one of them.
+            self._caveats.append(
+                "⚠ This layer's features fall in %d distinct ~1 km cells, more than the %d the "
+                "service places for one file, so they were merged onto a %g° grid (%d cells). A "
+                "name recorded on both sides of a border inside one merged cell is asked about "
+                "one side only.%s"
+                % (rows.n_fine, client.MAX_CELLS, rows.grid, rows.n_cells,
+                   (" Even so the service reads only the first %d cells." % client.MAX_CELLS)
+                   if rows.n_cells > client.MAX_CELLS else ""))
         if n_no_place:
             # ⛔⛔ "THEIR PLACE COMES FROM THE LAYER" PROMISED A FALLBACK THAT DOES NOT EXIST.
             #   Measured 2026-09-17 on Belfast's street-tree register read as the CSV it is: all

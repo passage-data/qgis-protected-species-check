@@ -69,9 +69,10 @@ established`** (the layer states no place, so which laws are in force was never 
 ## How many names
 
 Measured on the live door 2026-09-17: **5,000 distinct names returned whole in 23.8 seconds**,
-nothing dropped. 100, 400, 900 and 2,000 the same, the slowest pass 34.6 s. The plugin sends one
-row per *distinct* name with that name's own mean position, so a 40,000-feature layer of 300
-species is 300 rows on the wire, not 40,000.
+nothing dropped. 100, 400, 900 and 2,000 the same, the slowest pass 34.6 s. The plugin sends each
+*distinct* name once for every ~1 km cell its features fall in — never their average, which can
+be a place none of them is — so a species recorded in two provinces is answered about both.
+York's 3,550 trees go up as 1,061 lines, not 3,550.
 
 ## What it does not do
 
@@ -88,8 +89,8 @@ species is 300 rows on the wire, not 40,000.
 QGIS **3.22 or newer**, and an internet connection. The whole suite runs green on QGIS 3.22.9
 (PyQt 5.15.4, GDAL 3.5.1), 3.44.14 (PyQt 5.15.13) and 4.2.2 (PyQt 6.11, GDAL 3.13.3) — the floor is
 a version that was run, not one that was hoped for. The screening runs on the Passage Data service.
-No account, no sign-up, and the plugin sends only the distinct scientific names and one
-representative coordinate per name — never your attribute table.
+No account, no sign-up, and the plugin sends only the distinct scientific names and, for each,
+the ~1 km cells its features fall in (rounded to 0.01°) — never your attribute table.
 
 ## Installing
 
