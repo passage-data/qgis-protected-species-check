@@ -453,8 +453,8 @@ def main():
             continue
         _txt = io.open(os.path.join(_dir, _fn), encoding="utf-8").read()
         # the docstrings quote the defect they exist to prevent; only CODE decides anything
-        _code = "\n".join(l for l in _txt.splitlines()
-                          if not l.lstrip().startswith(("#", '"', "'")))
+        _code = "\n".join(ln for ln in _txt.splitlines()
+                          if not ln.lstrip().startswith(("#", '"', "'")))
         _hits = sum(_code.count(t) for t in _tells)
         if _fn == "client.py":
             _inside = _hits

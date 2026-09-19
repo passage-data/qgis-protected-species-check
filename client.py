@@ -26,7 +26,7 @@ TIMEOUT_S = 300
 #   looks exactly like nobody using the plugin. Barred in `client_selftest` against that file.
 # ⛔ NOTHING ABOUT THE MACHINE RIDES HERE. `urllib` would otherwise send `Python-urllib/3.x`; a
 #   token of ours replaces it rather than appending to it, and no QGIS build, OS or host is added.
-USER_AGENT = "passage-data-qgis-protected-species-check/0.1.12"
+USER_AGENT = "passage-data-qgis-protected-species-check/0.1.13"
 
 # ⛔⛔ WHAT THE BARS SEND, SO THAT THE PRODUCT'S NUMBER IS THE PRODUCT'S. Both suites screen
 #   against the LIVE door — that is the point of them — and until 2026-09-17 they did it under
@@ -36,7 +36,7 @@ USER_AGENT = "passage-data-qgis-protected-species-check/0.1.12"
 # ⛔ IT IS NOT A PREFIX OF THE PRODUCT TOKEN, AND THE PRODUCT TOKEN IS NOT A PREFIX OF IT —
 #   the door prefix-matches, so either would put the suites straight back into the product's
 #   count. Barred in `client_selftest`, against `funnel_meter` itself.
-SELFTEST_USER_AGENT = "passage-data-qgis-selftest/0.1.12"
+SELFTEST_USER_AGENT = "passage-data-qgis-selftest/0.1.13"
 
 # ⛔⛔ MEASURED, NOT GUESSED (2026-09-17, live door): 100 / 400 / 900 / 2,000 / 5,000 distinct
 #   names all returned whole, `not_screened: 0`, the slowest pass 34.6 s. The first cut of this

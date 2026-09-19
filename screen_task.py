@@ -168,7 +168,7 @@ class ScreenTask(QgsTask):
     """The call, off the GUI thread. `on_done(answer, error)` runs back on the main thread."""
 
     def __init__(self, rows, province, on_done):
-        super().__init__("Checking protected species", QgsTask.CanCancel)
+        super().__init__("Checking protected species", QgsTask.Flag.CanCancel)
         self._rows = rows
         self._province = province
         self._on_done = on_done

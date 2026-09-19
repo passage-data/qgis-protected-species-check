@@ -277,19 +277,19 @@ def main():
     bar("⛔⛔ with the place NOT established, the heading does NOT claim the law is in force — "
         "every row beneath it is marked `not established`",
         "IN FORCE HERE" not in _unest and "NOT ESTABLISHED" in _unest,
-        [l for l in _unest.splitlines() if l.startswith("LISTED")][:1])
+        [ln for ln in _unest.splitlines() if ln.startswith("LISTED")][:1])
     bar("⛔ …and the row and its heading agree",
         "[not established" in _unest,
-        [l.strip()[-30:] for l in _unest.splitlines() if "not established" in l][:1])
+        [ln.strip()[-30:] for ln in _unest.splitlines() if "not established" in ln][:1])
     # ⛔ MUST-PASS NULL — the control that proves the heading is not simply always hedged.
     _inforce = d._report(_answer(True))
     bar("* MUST-PASS NULL: a law that DOES reach these records still earns the plain heading",
         "LISTED UNDER A LAW IN FORCE HERE" in _inforce,
-        [l for l in _inforce.splitlines() if l.startswith("LISTED")][:1])
+        [ln for ln in _inforce.splitlines() if ln.startswith("LISTED")][:1])
     bar("⛔ MUST-FAIL: the two headings are not the same string — a hedge that never varies is "
         "not a hedge",
-        [l for l in _unest.splitlines() if l.startswith("LISTED")]
-        != [l for l in _inforce.splitlines() if l.startswith("LISTED")])
+        [ln for ln in _unest.splitlines() if ln.startswith("LISTED")]
+        != [ln for ln in _inforce.splitlines() if ln.startswith("LISTED")])
 
     if live:
         print("\n-- Check is clicked, and the panel is read back")
@@ -400,14 +400,14 @@ def main():
                 bar("⛔⛔ the caribou's QUALIFIED listing is marked as a question on screen, with "
                     "the populations the Act actually named",
                     "QUALIFIED" in said and "Mountain population" in said,
-                    [l.strip()[:88] for l in said.splitlines() if "QUALIFIED" in l][:1])
+                    [ln.strip()[:88] for ln in said.splitlines() if "QUALIFIED" in ln][:1])
                 bar("⛔⛔ ...and the panel does not contradict itself — a headline counting 0 "
                     "settled listings above a section headed LISTED is read as broken",
                     ("a question, not a finding" in said) or ("LISTED" not in said),
-                    [l[:88] for l in said.splitlines() if "question, not a finding" in l][:1])
+                    [ln[:88] for ln in said.splitlines() if "question, not a finding" in ln][:1])
                 bar("★ the edition the panel cites comes from the register's own card",
                     "ed. 20" in said,
-                    [l.strip()[-40:] for l in said.splitlines() if "ed. 20" in l][:1])
+                    [ln.strip()[-40:] for ln in said.splitlines() if "ed. 20" in ln][:1])
                 bar("the six columns are reported as written",
                     "given the six columns" in said, said.splitlines()[-1][:96] if said else "")
 
@@ -603,7 +603,7 @@ def main():
                 said_t.splitlines()[0][:96] if said_t else "(empty)")
             bar("⛔⛔ MUST-FAIL: with no place, no register is claimed to be IN FORCE here",
                 "law in force here" not in said_t,
-                [l for l in said_t.splitlines() if "in force here" in l][:1] or "none, correct")
+                [ln for ln in said_t.splitlines() if "in force here" in ln][:1] or "none, correct")
             # a CSV provider cannot take columns either — and must say so rather than pretend
             bar("⛔ the write-back on a CSV says what it could not do, in a sentence",
                 ("given the six columns" in said_t) or ("Nothing was written back" in said_t),
@@ -758,8 +758,8 @@ def main():
                 bar("⛔⛔ MUST-FAIL: NOTHING on a layer outside Canada is marked « law in force "
                     "here » — the Red List is not law, and neither is a convention",
                     "law in force here" not in said_b,
-                    [l.strip()[:96] for l in said_b.splitlines()
-                     if "law in force here" in l][:2] or "none, correct")
+                    [ln.strip()[:96] for ln in said_b.splitlines()
+                     if "law in force here" in ln][:2] or "none, correct")
                 bar("⛔⛔ MUST-FAIL: ...and no section headed LISTED, three lines under a headline "
                     "that says no law we hold applies — a panel contradicting itself reads broken",
                     "LISTED" not in said_b, said_b.splitlines()[0][:96] if said_b else "(empty)")
@@ -777,19 +777,19 @@ def main():
                      or "NAMED, BUT BY NO LAW WE HOLD" in said_b)
                     and ("a convention — in force wherever you are" in said_b
                          or "an assessment, not a law" in said_b),
-                    [l.strip()[:88] for l in said_b.splitlines()
-                     if "in force wherever you are" in l or "an assessment, not a law" in l][:1])
+                    [ln.strip()[:88] for ln in said_b.splitlines()
+                     if "in force wherever you are" in ln or "an assessment, not a law" in ln][:1])
                 bar("⛔ the jurisdictions we hold NO register for are named as THIS FILE's, not "
                     "buried among the ones that are nowhere near it",
                     "NO REGISTER WE HOLD REACHES" in said_b,
-                    [l[:96] for l in said_b.splitlines()
-                     if "NO REGISTER WE HOLD REACHES" in l][:1] or "(absent)")
+                    [ln[:96] for ln in said_b.splitlines()
+                     if "NO REGISTER WE HOLD REACHES" in ln][:1] or "(absent)")
                 # ⛔ MUST-PASS NULL — the control that proves the panel is not simply mute about
                 #   laws. The SAME renderer, on the Quebec caribou layer, still says it.
                 bar("* MUST-PASS NULL: the same panel on a CANADIAN layer DOES say « law in "
                     "force here » — the fix withholds a claim, it does not delete the vocabulary",
-                    "law in force here" in said, [l.strip()[-38:] for l in said.splitlines()
-                                                  if "law in force here" in l][:1])
+                    "law in force here" in said, [ln.strip()[-38:] for ln in said.splitlines()
+                                                  if "law in force here" in ln][:1])
                 bvals = {}
                 bagain = QgsVectorLayer(os.path.join(bhere, BIRDS_SHP), "atlas re-opened", "ogr")
                 for f in bagain.getFeatures():
@@ -853,11 +853,11 @@ def main():
                     "298 features that does not say which is the defect this plugin exists to "
                     "prevent",
                     "291" in said_a and "298" in said_a and "not screened" in said_a,
-                    [l[:104] for l in said_a.splitlines() if "291" in l][:1] or said_a[:104])
+                    [ln[:104] for ln in said_a.splitlines() if "291" in ln][:1] or said_a[:104])
                 bar("⛔ MUST-FAIL: a layer in Canberra is never told a Canadian law reaches it",
                     "law in force here" not in said_a,
-                    [l.strip()[:80] for l in said_a.splitlines()
-                     if "law in force here" in l][:1] or "none, correct")
+                    [ln.strip()[:80] for ln in said_a.splitlines()
+                     if "law in force here" in ln][:1] or "none, correct")
 
         # ══════════════════════════════════════════════════════════════════════════════════════
         # ⛔⛔ THE SERVICE IS DOWN — the path a stranger on a train meets, and nobody had run it
@@ -1070,16 +1070,16 @@ def main():
                 "no place — the sixth instance of this defect was exactly that heading, over "
                 "these exact rows",
                 "IN FORCE HERE" not in said_b,
-                [l for l in said_b.splitlines() if "IN FORCE HERE" in l][:1] or "none, correct")
+                [ln for ln in said_b.splitlines() if "IN FORCE HERE" in ln][:1] or "none, correct")
             # ★★ THE OFF-BY-ONE, ON THE FILE IT WAS FOUND ON
             bar("⛔⛔ 189 values went up and 188 rows came back: the difference is NAMED in the "
                 "panel. `not_screened` read 0 on this same run, because a value the door refuses "
                 "as a name was never in its count",
                 "came back with NO row" in said_b,
-                [l for l in said_b.splitlines() if "NO row" in l][:1] or "NOT NAMED")
+                [ln for ln in said_b.splitlines() if "NO row" in ln][:1] or "NOT NAMED")
             bar("★ …and the value it names is the one the door dropped",
-                "N/A" in "".join(l for l in said_b.splitlines() if "NO row" in l),
-                [l[:96] for l in said_b.splitlines() if "NO row" in l][:1])
+                "N/A" in "".join(ln for ln in said_b.splitlines() if "NO row" in ln),
+                [ln[:96] for ln in said_b.splitlines() if "NO row" in ln][:1])
             bar("★ MUST-PASS CONTROL, BOTH NUMBERS: the fold is what makes that a 1 — comparing "
                 "the RAW layer values instead of the sent ones reports the two names the "
                 "sanitiser rewrote as drops too",
@@ -1099,7 +1099,7 @@ def main():
                 "the layer » — this layer has no geometry at all, and 0.1.8 said exactly that "
                 "over it; the place came from the dropdown, and the panel names it",
                 "rest of the layer" not in said_nir and "the place you chose, Northern Ireland"
-                in _nir_top, [l[:90] for l in said_nir.splitlines() if "geometry" in l][:1])
+                in _nir_top, [ln[:90] for ln in said_nir.splitlines() if "geometry" in ln][:1])
             bar("★ MUST-PASS CONTROL: with NOTHING chosen the same file still leads with the NONE "
                 "sentence — the fix did not delete the placeless warning",
                 "NONE of the 189 names" in said_b, _bhead3[:90])
@@ -1108,12 +1108,12 @@ def main():
                 "were NOT asked — reaches the panel; 0.1.8 received it on every provincial row "
                 "and printed it nowhere",
                 "NOT asked" in said_ca,
-                [l[:100] for l in said_ca.splitlines() if "NOT asked" in l][:1] or "ABSENT")
+                [ln[:100] for ln in said_ca.splitlines() if "NOT asked" in ln][:1] or "ABSENT")
             said_on = drive(d_bel, app, bel, "SPECIES", place="CA-ON")
             bar("★ MUST-PASS CONTROL: with a province chosen nothing went unasked, and the panel "
                 "says nothing of the kind — the line reads the rows, it is not printed always",
                 "NOT asked" not in said_on,
-                [l[:100] for l in said_on.splitlines() if "NOT asked" in l][:1] or "none, correct")
+                [ln[:100] for ln in said_on.splitlines() if "NOT asked" in ln][:1] or "none, correct")
         # ⛔ THIS SECTION RUNS AFTER THE CORPUS BLOCK'S OWN TEARDOWN, so it tears itself down
         #   the same way. Without it the layer and the dialog were destroyed at interpreter
         #   shutdown — after `exitQgis()` has taken away the provider registry their destructors
@@ -1177,13 +1177,13 @@ def main():
         "nothing about the selection — true, and read by somebody who believes they screened "
         "what they had picked (§4: a choice we do not honour changes what the caller sees)",
         "selected on this layer" in _said6,
-        [l[:96] for l in _said6.splitlines() if "selected" in l][:1] or "NOT SAID")
+        [ln[:96] for ln in _said6.splitlines() if "selected" in ln][:1] or "NOT SAID")
     _p6.removeSelection()
     _d6._run()
     bar("* MUST-PASS NULL: with nothing selected the sentence is GONE — a caveat printed always "
         "is a caveat nobody reads",
         "selected on this layer" not in _d6.out.toPlainText(),
-        [l[:70] for l in _d6.out.toPlainText().splitlines() if "selected" in l][:1] or "absent")
+        [ln[:70] for ln in _d6.out.toPlainText().splitlines() if "selected" in ln][:1] or "absent")
 
     # ② AN OPEN EDIT SESSION WHEN THE WRITE-BACK FIRES
     _eg = os.path.join(tmp, "edit_session.gpkg")
@@ -1254,7 +1254,7 @@ def main():
     QgsVectorFileWriter.writeAsVectorFormatV3(_p6, _mg, QgsCoordinateTransformContext(), _oa)
     _ob = QgsVectorFileWriter.SaveVectorOptions()
     _ob.driverName, _ob.layerName = "GPKG", "second"
-    _ob.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer
+    _ob.actionOnExistingFile = QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteLayer
     QgsVectorFileWriter.writeAsVectorFormatV3(_ln6, _mg, QgsCoordinateTransformContext(), _ob)
     _la = QgsVectorLayer(_mg + "|layername=first", "first", "ogr")
     _lb = QgsVectorLayer(_mg + "|layername=second", "second", "ogr")
@@ -1367,14 +1367,14 @@ def main():
         "plugin could do, and « the cap was reached » does not say whether that is 1 or 1,400",
         "only the first %d were sent" % client.MAX_NAMES in _saidb
         and "1 name was NOT screened" in _saidb and "split the layer" in _saidb,
-        [l[:112] for l in _saidb.splitlines() if "were sent" in l][:1] or "NOT SAID")
+        [ln[:112] for ln in _saidb.splitlines() if "were sent" in ln][:1] or "NOT SAID")
     bar("⛔ …and the line above it counts what was READ, not what was sent — it said « 5000 "
         "distinct names read from 5001 features », understating the read by exactly the number "
         "that was dropped",
         "%d distinct names read from %d features" % (client.MAX_NAMES + 1,
                                                      client.MAX_NAMES + 1) in _saidb
         and "the first %d sent" % client.MAX_NAMES in _saidb,
-        [l[:96] for l in _saidb.splitlines() if "distinct names read" in l][:1])
+        [ln[:96] for ln in _saidb.splitlines() if "distinct names read" in ln][:1])
     _small = QgsVectorLayer("Point?crs=EPSG:4326", "under the cap", "memory")
     _small.dataProvider().addAttributes([QgsField("scientificName", QVariant.String, len=80)])
     _small.updateFields()

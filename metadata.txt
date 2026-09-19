@@ -5,7 +5,7 @@ qgisMaximumVersion=4.99
 supportsQt6=True
 description=Which species in your layer are legally protected — under which law, and which edition. Canada, England, Wales and Scotland, and the global conventions.
 about=Screens the scientific names in any vector layer or table against the conservation registers that decide, and writes the verdict back as attribute columns. 14 laws in force in Canada — the federal Species at Risk Act Schedule 1 and the Migratory Birds Convention Act, Quebec's threatened and vulnerable species regulations for fauna and flora, and the Acts of Ontario, New Brunswick, Manitoba, Alberta, Nova Scotia, British Columbia, Newfoundland and Labrador, Saskatchewan, the Northwest Territories and Yukon — and 8 in the United Kingdom: the schedules of the Wildlife and Countryside Act, the Conservation of Habitats and Species Regulations for England and Wales, and the Conservation (Natural Habitats, &c.) Regulations for Scotland; we hold none for Northern Ireland, and an answer about records there says so — with the CITES and CMS Appendices beside them as conventions, never as another jurisdiction's Act — with the IUCN Red List, COSEWIC and the BC Conservation Data Centre beside them, shown as assessments and never as law. Every answer names the instrument and the edition it cites. Where the layer has coordinates, only the laws in force there are marked as applying; where it has none, the plugin says the jurisdiction was not established rather than implying every register applies. It also flags the species whose COSEWIC assessment is not the status Schedule 1 carries, which is the most common way a report quotes the wrong status. Names are resolved against the GBIF backbone first. Requires an internet connection; the screening runs on the Passage Data service and no account is needed. Every screening states its own coverage: it ends with the registers it was actually checked against, and names the jurisdictions in your file that no register we hold reaches — an absent instrument is never reported as an absent listing.
-version=0.1.12
+version=0.1.13
 author=Passage Data
 email=hello@passage-data.com
 
@@ -20,7 +20,10 @@ deprecated=False
 
 tags=species,protected species,endangered,threatened,species at risk,conservation status,red list,IUCN,COSEWIC,SARA,biodiversity,ecology,taxonomy,GBIF,Canada,Quebec,environmental assessment,wildlife,United Kingdom,England,Scotland,Wales,Wildlife and Countryside Act,Schedule 5,Habitats Regulations,UK
 
-changelog=0.1.12
+changelog=0.1.13
+    CODE ONLY. The enum names QGIS 4 documents replace the old aliases QGIS still accepts, so
+    plugins.qgis.org's Qt6 check has nothing left to warn about. Nothing a person sees changes.
+    0.1.12
     Nine places that caught every error now catch only the one each is there for, so a
     fault nobody expected is reported instead of passing silently. plugins.qgis.org's
     upload scan (Bandit) blocked the package on them. Nothing a person sees changes.
