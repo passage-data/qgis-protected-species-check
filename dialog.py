@@ -227,7 +227,7 @@ class ScreenDialog(QDialog):
         subset = ""
         try:
             subset = (lyr.subsetString() or "").strip()
-        except Exception:                                            # noqa: BLE001
+        except AttributeError:
             pass                                                     # a provider without filters
         if not rows:
             self.out.setPlainText(
@@ -271,7 +271,7 @@ class ScreenDialog(QDialog):
         n_selected = 0
         try:
             n_selected = int(lyr.selectedFeatureCount())
-        except Exception:                                            # noqa: BLE001
+        except AttributeError:
             pass                                                     # a provider without selection
         if n_selected and n_selected < n_feat + n_blank:
             self._caveats.append(

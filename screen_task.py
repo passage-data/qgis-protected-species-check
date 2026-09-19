@@ -6,8 +6,8 @@
 ⛔ NOTHING IS WRITTEN UNTIL THE ANSWER IS WHOLE. The write-back happens in `finished()`, on the
    main thread, inside one edit session — a half-written attribute table is worse than none.
 """
-from qgis.core import (NULL, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsField,
-                       QgsPointXY, QgsProject, QgsTask)
+from qgis.core import (NULL, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsCsException,
+                       QgsField, QgsPointXY, QgsProject, QgsTask)
 from qgis.PyQt.QtCore import QVariant
 
 from . import client
@@ -88,7 +88,7 @@ def name_values(layer, field):
                 pt = to_wgs.transform(QgsPointXY(pt))
             if -90.0 <= pt.y() <= 90.0 and -180.0 <= pt.x() <= 180.0:
                 cells.add((round(pt.y() / client.GRID), round(pt.x() / client.GRID)))
-        except Exception:                                            # noqa: BLE001
+        except (QgsCsException, TypeError, ValueError):             # CRS failed; asPoint refused
             pass                                                     # a bad geometry is not a name
     names = sorted(acc, key=str.lower)
     # ⛔⛔ A FLAG THAT ATE THE NUMBER. This was `len(rows) > MAX_NAMES`, a bool — so the panel

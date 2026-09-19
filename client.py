@@ -7,6 +7,7 @@
 ⛔ NO THIRD-PARTY IMPORTS. The QGIS plugin guidelines discourage external dependencies, and a
    plugin that needs `pip install` is a plugin most people cannot run.
 """
+import http.client
 import json
 import time
 import urllib.error
@@ -25,7 +26,7 @@ TIMEOUT_S = 300
 #   looks exactly like nobody using the plugin. Barred in `client_selftest` against that file.
 # ⛔ NOTHING ABOUT THE MACHINE RIDES HERE. `urllib` would otherwise send `Python-urllib/3.x`; a
 #   token of ours replaces it rather than appending to it, and no QGIS build, OS or host is added.
-USER_AGENT = "passage-data-qgis-protected-species-check/0.1.11"
+USER_AGENT = "passage-data-qgis-protected-species-check/0.1.12"
 
 # ⛔⛔ WHAT THE BARS SEND, SO THAT THE PRODUCT'S NUMBER IS THE PRODUCT'S. Both suites screen
 #   against the LIVE door — that is the point of them — and until 2026-09-17 they did it under
@@ -35,7 +36,7 @@ USER_AGENT = "passage-data-qgis-protected-species-check/0.1.11"
 # ⛔ IT IS NOT A PREFIX OF THE PRODUCT TOKEN, AND THE PRODUCT TOKEN IS NOT A PREFIX OF IT —
 #   the door prefix-matches, so either would put the suites straight back into the product's
 #   count. Barred in `client_selftest`, against `funnel_meter` itself.
-SELFTEST_USER_AGENT = "passage-data-qgis-selftest/0.1.11"
+SELFTEST_USER_AGENT = "passage-data-qgis-selftest/0.1.12"
 
 # ⛔⛔ MEASURED, NOT GUESSED (2026-09-17, live door): 100 / 400 / 900 / 2,000 / 5,000 distinct
 #   names all returned whole, `not_screened: 0`, the slowest pass 34.6 s. The first cut of this
@@ -161,15 +162,16 @@ def screen(rows, province=None, endpoint=None, timeout=None):
         req = urllib.request.Request(endpoint, data=body,
                                      headers={"Content-Type": ctype, "User-Agent": USER_AGENT})
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as r:
+            # the URL is ENDPOINT (https) or a test's stand-in, never a person's text
+            with urllib.request.urlopen(req, timeout=timeout) as r:  # nosec B310
                 raw = r.read()
             break
         except urllib.error.HTTPError as e:
             detail = ""
             try:
                 detail = "  ".join(json.loads(e.read().decode("utf-8")).get("refusals") or [])
-            except Exception:                                        # noqa: BLE001
-                pass
+            except (OSError, ValueError, AttributeError, TypeError, http.client.HTTPException):
+                pass                              # the refusals are a courtesy; the code is the answer
             if e.code < 500 or attempt == RETRIES - 1:
                 raise ScreenError("The screening service answered %s. %s" % (e.code, detail[:400]))
             last = "HTTP %s" % e.code

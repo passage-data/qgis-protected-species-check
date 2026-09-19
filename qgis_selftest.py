@@ -896,7 +896,7 @@ def main():
             try:
                 _w.close()
                 _w.deleteLater()
-            except Exception:                                        # noqa: BLE001
+            except RuntimeError:                             # a dialog Qt already deleted
                 pass
         del _dlgs[:]
         app.processEvents()
@@ -1121,7 +1121,7 @@ def main():
         try:
             d_bel.close()
             d_bel.deleteLater()
-        except Exception:                                            # noqa: BLE001
+        except RuntimeError:                                 # a dialog Qt already deleted
             pass
         app.processEvents()
         QgsProject.instance().removeAllMapLayers()
@@ -1307,7 +1307,7 @@ def main():
         try:
             _w.close()
             _w.deleteLater()
-        except Exception:                                            # noqa: BLE001
+        except RuntimeError:                                 # a dialog Qt already deleted
             pass
     del _dlgs6[:]
     app.processEvents()
@@ -1390,7 +1390,7 @@ def main():
         try:
             _w.close()
             _w.deleteLater()
-        except Exception:                                            # noqa: BLE001
+        except RuntimeError:                                 # a dialog Qt already deleted
             pass
     del _dlgsb[:]
     app.processEvents()
